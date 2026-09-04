@@ -5,6 +5,11 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
+const supabaseConfig = window.KITCHEN_RESET_CONFIG;
+const supabase = supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")
+  ? window.supabase.createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey)
+  : null;
+let currentUser = null;
 
 function showStep(step) {
   state.step = step;
@@ -74,7 +79,34 @@ document.querySelector("#bonus").addEventListener("input", event => {
   updateSummary();
 });
 
-next.addEventListener("click", () => {
+async function saveBooking() {
+  if (!supabase || !currentUser) return null;
+  const { data: booking, error } = await supabase.from("bookings").insert({
+    user_id: currentUser.id,
+    address: state.address,
+    service_tier: state.tier.name,
+    price_cents: state.tier.price * 100,
+    bonus_cents: state.bonus * 100,
+    duration_minutes: state.tier.duration,
+    deadline: state.deadline,
+    notes: document.querySelector("#notes").value.trim() || null
+  }).select("id").single();
+  if (error) throw error;
+  for (const input of document.querySelectorAll(".photo-card input")) {
+    const file = input.files[0];
+    if (!file) continue;
+    const path = `${currentUser.id}/${booking.id}/${input.id}-${crypto.randomUUID()}`;
+    const upload = await supabase.storage.from("booking-photos").upload(path, file, { contentType: file.type, upsert: false });
+    if (upload.error) throw upload.error;
+    const photo = await supabase.from("booking_photos").insert({
+      booking_id: booking.id, user_id: currentUser.id, photo_type: input.id, storage_path: path
+    });
+    if (photo.error) throw photo.error;
+  }
+  return booking.id;
+}
+
+next.addEventListener("click", async () => {
   if (state.step === 1) {
     state.address = document.querySelector("#address").value.trim();
     const hint = document.querySelector("#address-hint");
@@ -92,6 +124,15 @@ next.addEventListener("click", () => {
   if (state.step === 2) updateQuote();
   if (state.step === 4) updateSummary();
   if (state.step === 5) {
+    next.disabled = true;
+    try {
+      await saveBooking();
+    } catch (error) {
+      next.disabled = false;
+      document.querySelector("#confirm-title").textContent = "Booking could not be saved.";
+      document.querySelector("#confirm-title").insertAdjacentHTML("afterend", `<p class="field-hint error">${error.message}</p>`);
+      return;
+    }
     document.querySelector("#booking-id").textContent = `KR-${Math.floor(10000 + Math.random() * 89999)}`;
     document.querySelector("#success-deadline").textContent = state.deadline;
     document.querySelector("#success-copy").textContent = `We’ll notify you as soon as your ${state.deadline} deadline is confirmed.`;
@@ -128,10 +169,36 @@ document.querySelector("#close-account").addEventListener("click", () => account
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
-  localStorage.setItem("kitchenResetEmail", email);
-  document.querySelector("#account-status").textContent = `Signed in as ${email}. Your prototype session is saved on this device.`;
-  updateAccountButton();
+  if (!supabase) {
+    localStorage.setItem("kitchenResetEmail", email);
+    document.querySelector("#account-status").textContent = `Saved locally. Add Supabase config to enable account sync.`;
+    updateAccountButton();
+    return;
+  }
+  supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
+    .then(({ error }) => {
+      if (error) throw error;
+      document.querySelector("#account-status").textContent = "Check your email for a secure sign-in link.";
+    })
+    .catch(error => { document.querySelector("#account-status").textContent = error.message; });
 });
+
+if (supabase) {
+  supabase.auth.getUser().then(({ data }) => {
+    currentUser = data.user;
+    if (currentUser) {
+      localStorage.setItem("kitchenResetEmail", currentUser.email);
+      updateAccountButton();
+    }
+  });
+  supabase.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    if (currentUser) {
+      localStorage.setItem("kitchenResetEmail", currentUser.email);
+      updateAccountButton();
+    }
+  });
+}
 
 updateAccountButton();
 showStep(1);

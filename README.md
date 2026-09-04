@@ -21,3 +21,14 @@ git push -u origin main
 ```
 
 After the first push, GitHub Pages will deploy from the workflow. The deployment URL will be shown in the workflow run and under the repository's **Deployments** tab.
+
+## Connecting Supabase
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+3. Copy `app/config.example.js` to `app/config.js`.
+4. Replace the URL and publishable/anon key in `app/config.js` using **Project Settings → Data API** and **API Keys**.
+5. In Supabase **Authentication → URL Configuration**, add the GitHub Pages URL (for example `https://coxdylan7.github.io/kitchen-reset/`) to the allowed redirect URLs.
+6. Commit and push `app/config.js` only if you have configured it as a deployment secret instead; never commit private service-role keys. For this static deployment, use a public publishable/anon key with the RLS policies in the schema.
+
+The app uses magic-link email authentication. Once signed in, booking records and customer-uploaded photos are saved to Supabase. Without `config.js`, the UI remains usable as a local prototype and does not send data anywhere.
