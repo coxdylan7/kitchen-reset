@@ -3,6 +3,8 @@ const labels = ["Address", "Photos", "Your quote", "Deadline", "Review", "Booked
 const next = document.querySelector("#next");
 const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
+const accountButton = document.querySelector("#account-button");
+const accountPanel = document.querySelector("#account-panel");
 
 function showStep(step) {
   state.step = step;
@@ -22,6 +24,12 @@ function updateQuote() {
   document.querySelector("#tier-name").textContent = state.tier.name;
   document.querySelector("#tier-price").textContent = `$${state.tier.price}`;
   document.querySelector("#tier-duration").textContent = `${state.tier.duration} minutes`;
+  const signals = [
+    { label: "Typical dish load", value: "Standard" },
+    { label: "Sink + counter reset", value: "Included" },
+    { label: "Cookware handling", value: "Included" }
+  ];
+  document.querySelector("#quote-signals").innerHTML = signals.map(signal => `<div><span>${signal.label}</span><b>${signal.value}</b></div>`).join("");
 }
 
 function updateSummary() {
@@ -38,10 +46,19 @@ function updateSummary() {
 
 document.querySelectorAll(".photo-card input").forEach(input => input.addEventListener("change", event => {
   const card = event.target.closest(".photo-card");
-  if (!card.classList.contains("uploaded") && event.target.files.length) state.photos += 1;
+  const file = event.target.files[0];
+  if (!card.classList.contains("uploaded") && file) state.photos += 1;
+  if (!file) return;
   card.classList.add("uploaded");
   card.querySelector("strong").textContent = "Photo added";
   card.querySelector("small").textContent = "Ready";
+  const preview = card.querySelector(".photo-preview");
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    preview.style.backgroundImage = `url("${reader.result}")`;
+    preview.classList.add("visible");
+  });
+  reader.readAsDataURL(file);
   next.disabled = state.photos < 3;
 }));
 
@@ -62,7 +79,15 @@ next.addEventListener("click", () => {
     state.address = document.querySelector("#address").value.trim();
     const hint = document.querySelector("#address-hint");
     if (!state.address) { hint.textContent = "Please enter an address to check service availability."; hint.classList.add("error"); return; }
+    if (!/brooklyn|manhattan/i.test(state.address)) {
+      hint.textContent = "We’re not in that area yet. Try a Brooklyn or Manhattan address for this pilot.";
+      hint.classList.add("error");
+      document.querySelector("#address-result").classList.add("hidden");
+      return;
+    }
+    hint.classList.remove("error");
     hint.textContent = "Good news—this address is in the pilot service area.";
+    document.querySelector("#address-result").classList.remove("hidden");
   }
   if (state.step === 2) updateQuote();
   if (state.step === 4) updateSummary();
@@ -74,5 +99,39 @@ next.addEventListener("click", () => {
   showStep(Math.min(state.step + 1, 6));
 });
 back.addEventListener("click", () => showStep(Math.max(state.step - 1, 1)));
-document.querySelector("#restart").addEventListener("click", () => { state.step = 1; state.photos = 0; state.bonus = 0; document.querySelectorAll(".photo-card").forEach(card => { card.classList.remove("uploaded"); card.querySelector("strong").textContent = card.querySelector("small").textContent === "Optional" ? "Wide view" : card.querySelector("strong").textContent; }); showStep(1); });
+document.querySelector("#restart").addEventListener("click", () => {
+  state.step = 1; state.photos = 0; state.bonus = 0;
+  document.querySelectorAll(".photo-card").forEach(card => {
+    const input = card.querySelector("input");
+    card.classList.remove("uploaded");
+    input.value = "";
+    card.querySelector("strong").textContent = input.id === "sink-photo" ? "Full sink" : input.id === "counter-photo" ? "Counter & drying area" : input.id === "cookware-photo" ? "Cookware" : "Wide view";
+    card.querySelector("small").textContent = input.id === "wide-photo" ? "Optional" : "Required";
+    card.querySelector(".photo-preview").style.backgroundImage = "";
+    card.querySelector(".photo-preview").classList.remove("visible");
+  });
+  document.querySelector("#address-result").classList.add("hidden");
+  showStep(1);
+});
+
+function updateAccountButton() {
+  const email = localStorage.getItem("kitchenResetEmail");
+  accountButton.textContent = email ? email.split("@")[0] : "Sign in";
+  accountButton.classList.toggle("signed-in", Boolean(email));
+}
+
+accountButton.addEventListener("click", () => {
+  accountPanel.classList.toggle("hidden");
+  if (!accountPanel.classList.contains("hidden")) document.querySelector("#account-email").focus();
+});
+document.querySelector("#close-account").addEventListener("click", () => accountPanel.classList.add("hidden"));
+document.querySelector("#account-form").addEventListener("submit", event => {
+  event.preventDefault();
+  const email = document.querySelector("#account-email").value.trim();
+  localStorage.setItem("kitchenResetEmail", email);
+  document.querySelector("#account-status").textContent = `Signed in as ${email}. Your prototype session is saved on this device.`;
+  updateAccountButton();
+});
+
+updateAccountButton();
 showStep(1);

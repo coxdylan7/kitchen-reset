@@ -10,8 +10,22 @@
     <main class="app-shell">
       <header class="site-header">
         <a class="brand" href="#start" aria-label="Kitchen Reset home">kitchen <em>reset</em></a>
-        <span class="service-zone">NYC pilot</span>
+        <div class="header-actions">
+          <span class="service-zone">NYC pilot</span>
+          <button id="account-button" class="account-button" type="button">Sign in</button>
+        </div>
       </header>
+
+      <div id="account-panel" class="account-panel hidden" aria-live="polite">
+        <div class="panel-heading"><div><p class="eyebrow">Your account</p><h2>Keep your booking handy.</h2></div><button id="close-account" class="close-button" type="button" aria-label="Close sign in">×</button></div>
+        <p>Save your booking updates and use the same email for future Kitchen Resets.</p>
+        <form id="account-form">
+          <label class="field-label" for="account-email">Email address</label>
+          <input id="account-email" class="text-field" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <button class="primary-button" type="submit">Continue with email</button>
+        </form>
+        <p id="account-status" class="field-hint">Prototype mode: no password required.</p>
+      </div>
 
       <section class="progress" aria-label="Booking progress">
         <div class="progress-label"><span id="step-label">1 · Address</span><span id="step-count">1 of 5</span></div>
@@ -23,8 +37,15 @@
         <h1>Let’s reset your sink.</h1>
         <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
         <label class="field-label" for="address">Apartment address</label>
-        <input id="address" class="text-field" autocomplete="street-address" placeholder="123 Example Street, Brooklyn" />
+        <input id="address" class="text-field" list="address-suggestions" autocomplete="street-address" placeholder="123 Example Street, Brooklyn" />
+        <datalist id="address-suggestions">
+          <option value="123 Bedford Avenue, Brooklyn"></option>
+          <option value="245 Wythe Avenue, Brooklyn"></option>
+          <option value="80 Rivington Street, Manhattan"></option>
+          <option value="150 Orchard Street, Manhattan"></option>
+        </datalist>
         <p id="address-hint" class="field-hint">Pilot coverage includes select Lower Manhattan and North Brooklyn addresses.</p>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small>North Brooklyn pilot zone · service available</small></div></div>
       </section>
 
       <section id="screen-photos" class="screen">
@@ -32,10 +53,10 @@
         <h1>Show us the work area.</h1>
         <p class="lede">Your photos help us give you a fair, all-in quote. Include only the sink and nearby dishes.</p>
         <div class="photo-grid">
-          <label class="photo-card" for="sink-photo"><input id="sink-photo" type="file" accept="image/*" /><span class="photo-icon">⌁</span><strong>Full sink</strong><small>Required</small></label>
-          <label class="photo-card" for="counter-photo"><input id="counter-photo" type="file" accept="image/*" /><span class="photo-icon">⌑</span><strong>Counter & drying area</strong><small>Required</small></label>
-          <label class="photo-card" for="cookware-photo"><input id="cookware-photo" type="file" accept="image/*" /><span class="photo-icon">◒</span><strong>Cookware</strong><small>Required</small></label>
-          <label class="photo-card optional" for="wide-photo"><input id="wide-photo" type="file" accept="image/*" /><span class="photo-icon">⊞</span><strong>Wide view</strong><small>Optional</small></label>
+          <label class="photo-card" for="sink-photo"><input id="sink-photo" type="file" accept="image/*" /><span class="photo-icon">⌁</span><span class="photo-preview"></span><strong>Full sink</strong><small>Required</small></label>
+          <label class="photo-card" for="counter-photo"><input id="counter-photo" type="file" accept="image/*" /><span class="photo-icon">⌑</span><span class="photo-preview"></span><strong>Counter & drying area</strong><small>Required</small></label>
+          <label class="photo-card" for="cookware-photo"><input id="cookware-photo" type="file" accept="image/*" /><span class="photo-icon">◒</span><span class="photo-preview"></span><strong>Cookware</strong><small>Required</small></label>
+          <label class="photo-card optional" for="wide-photo"><input id="wide-photo" type="file" accept="image/*" /><span class="photo-icon">⊞</span><span class="photo-preview"></span><strong>Wide view</strong><small>Optional</small></label>
         </div>
         <div class="privacy-note"><span>♧</span><p>Customer-initiated photos only. We do not use always-on cameras, and photos are used only to assess this booking.</p></div>
       </section>
@@ -53,6 +74,11 @@
             <li><span>Kitchen area</span><b>Sink + nearby counter</b></li>
           </ul>
         </article>
+        <div class="quote-reasons">
+          <div class="section-heading"><span>Why this quote</span><small>Photo-assisted estimate</small></div>
+          <div id="quote-signals" class="signal-list"></div>
+          <p class="quote-range">Typical range for this workload: <b>$69–$99</b>. Your all-in estimate is fixed before booking.</p>
+        </div>
         <label class="field-label" for="notes">Anything we should know?</label>
         <textarea id="notes" class="text-field" rows="3" placeholder="For example: pots are on the stove, use the green dish soap."></textarea>
         <p class="field-hint">If the visible workload is materially different on arrival, we’ll pause for your approval before changing scope or price.</p>
@@ -98,6 +124,12 @@
         <h1>We’re finding your reset pro.</h1>
         <p id="success-copy" class="lede">We’ll notify you as soon as your requested deadline is confirmed.</p>
         <article class="summary-card compact"><div><span>Booking reference</span><b id="booking-id">KR-00000</b></div><div><span>Requested completion</span><b id="success-deadline">Today by 7:00 PM</b></div></article>
+        <article class="status-card">
+          <div class="section-heading"><span>Booking status</span><small id="status-updated">Just now</small></div>
+          <div class="status-step complete"><span>✓</span><div><b>Request received</b><small>We have your photos and booking details.</small></div></div>
+          <div class="status-step current"><span>2</span><div><b>Finding your reset pro</b><small>We’re matching within the pilot service zone.</small></div></div>
+          <div class="status-step"><span>3</span><div><b>Deadline confirmed</b><small>We’ll notify you when a worker accepts.</small></div></div>
+        </article>
         <button id="restart" class="secondary-button" type="button">Create another prototype booking</button>
       </section>
 
