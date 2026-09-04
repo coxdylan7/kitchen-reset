@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kitchen Reset</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="#start" aria-label="Kitchen Reset home">kitchen <em>reset</em></a>
+        <span class="service-zone">NYC pilot</span>
+      </header>
+
+      <section class="progress" aria-label="Booking progress">
+        <div class="progress-label"><span id="step-label">1 · Address</span><span id="step-count">1 of 5</span></div>
+        <div class="progress-track"><i id="progress-fill"></i></div>
+      </section>
+
+      <section id="screen-address" class="screen active">
+        <p class="eyebrow">A usable kitchen, on your schedule</p>
+        <h1>Let’s reset your sink.</h1>
+        <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
+        <label class="field-label" for="address">Apartment address</label>
+        <input id="address" class="text-field" autocomplete="street-address" placeholder="123 Example Street, Brooklyn" />
+        <p id="address-hint" class="field-hint">Pilot coverage includes select Lower Manhattan and North Brooklyn addresses.</p>
+      </section>
+
+      <section id="screen-photos" class="screen">
+        <p class="eyebrow">Quick photo assessment</p>
+        <h1>Show us the work area.</h1>
+        <p class="lede">Your photos help us give you a fair, all-in quote. Include only the sink and nearby dishes.</p>
+        <div class="photo-grid">
+          <label class="photo-card" for="sink-photo"><input id="sink-photo" type="file" accept="image/*" /><span class="photo-icon">⌁</span><strong>Full sink</strong><small>Required</small></label>
+          <label class="photo-card" for="counter-photo"><input id="counter-photo" type="file" accept="image/*" /><span class="photo-icon">⌑</span><strong>Counter & drying area</strong><small>Required</small></label>
+          <label class="photo-card" for="cookware-photo"><input id="cookware-photo" type="file" accept="image/*" /><span class="photo-icon">◒</span><strong>Cookware</strong><small>Required</small></label>
+          <label class="photo-card optional" for="wide-photo"><input id="wide-photo" type="file" accept="image/*" /><span class="photo-icon">⊞</span><strong>Wide view</strong><small>Optional</small></label>
+        </div>
+        <div class="privacy-note"><span>♧</span><p>Customer-initiated photos only. We do not use always-on cameras, and photos are used only to assess this booking.</p></div>
+      </section>
+
+      <section id="screen-quote" class="screen">
+        <p class="eyebrow">Your estimate</p>
+        <h1>Your kitchen reset is ready.</h1>
+        <p class="lede">Based on the visible workload, we recommend the following service.</p>
+        <article class="quote-card">
+          <div><span class="card-label">All-in service price</span><h2 id="tier-name">Standard Reset</h2></div>
+          <strong id="tier-price" class="price">$79</strong>
+          <ul class="quote-details">
+            <li><span>Estimated service</span><b id="tier-duration">70 minutes</b></li>
+            <li><span>Includes</span><b>Wash, dry & put away</b></li>
+            <li><span>Kitchen area</span><b>Sink + nearby counter</b></li>
+          </ul>
+        </article>
+        <label class="field-label" for="notes">Anything we should know?</label>
+        <textarea id="notes" class="text-field" rows="3" placeholder="For example: pots are on the stove, use the green dish soap."></textarea>
+        <p class="field-hint">If the visible workload is materially different on arrival, we’ll pause for your approval before changing scope or price.</p>
+      </section>
+
+      <section id="screen-schedule" class="screen">
+        <p class="eyebrow">Choose a deadline</p>
+        <h1>When should it be finished?</h1>
+        <p class="lede">Choose your preferred completion time. It becomes confirmed only when a worker is assigned.</p>
+        <div class="slot-grid" role="group" aria-label="Completion deadline">
+          <button class="slot selected" type="button" data-slot="Today by 7:00 PM">Today <small>By 7:00 PM</small></button>
+          <button class="slot" type="button" data-slot="Today by 9:00 PM">Today <small>By 9:00 PM</small></button>
+          <button class="slot" type="button" data-slot="Tomorrow by 10:00 AM">Tomorrow <small>By 10:00 AM</small></button>
+          <button class="slot" type="button" data-slot="Tomorrow by 6:00 PM">Tomorrow <small>By 6:00 PM</small></button>
+        </div>
+        <label class="checkbox-row"><input id="risk-demo" type="checkbox" /><span>Preview a deadline-at-risk alert in this prototype</span></label>
+        <div class="deadline-note"><span>◷</span><p id="deadline-copy"><b>Requested:</b> Today by 7:00 PM. We’ll notify you early if matching is at risk.</p></div>
+      </section>
+
+      <section id="screen-confirm" class="screen">
+        <p class="eyebrow">Review booking</p>
+        <h1 id="confirm-title">Almost there.</h1>
+        <div id="risk-alert" class="risk-alert hidden">
+          <h3>Your deadline needs attention.</h3>
+          <p>A worker has not yet been assigned for this deadline. You can continue matching at the existing payout or add an optional bonus that goes entirely to the accepting worker.</p>
+          <label class="bonus-label" for="bonus">Urgency bonus <b id="bonus-value">$0</b></label>
+          <input id="bonus" type="range" min="0" max="30" step="10" value="0" />
+          <div class="range-labels"><span>$0</span><span>$10</span><span>$20</span><span>$30</span></div>
+        </div>
+        <article class="summary-card">
+          <div><span>Service</span><b id="summary-tier">Standard Reset</b></div>
+          <div><span>Requested completion</span><b id="summary-deadline">Today by 7:00 PM</b></div>
+          <div><span>Kitchen Reset</span><b id="summary-price">$79</b></div>
+          <div id="bonus-row" class="hidden"><span>Urgency bonus, paid to worker</span><b id="summary-bonus">$0</b></div>
+          <div class="summary-total"><span>Total</span><b id="summary-total">$79</b></div>
+        </article>
+        <p class="field-hint">You will receive a receipt after booking. The worker sees the guaranteed payout before accepting.</p>
+      </section>
+
+      <section id="screen-success" class="screen success-screen">
+        <div class="success-mark">✓</div>
+        <p class="eyebrow">Booking received</p>
+        <h1>We’re finding your reset pro.</h1>
+        <p id="success-copy" class="lede">We’ll notify you as soon as your requested deadline is confirmed.</p>
+        <article class="summary-card compact"><div><span>Booking reference</span><b id="booking-id">KR-00000</b></div><div><span>Requested completion</span><b id="success-deadline">Today by 7:00 PM</b></div></article>
+        <button id="restart" class="secondary-button" type="button">Create another prototype booking</button>
+      </section>
+
+      <footer class="action-bar">
+        <button id="back" class="back-button hidden" type="button">Back</button>
+        <button id="next" class="primary-button" type="button">Check address</button>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

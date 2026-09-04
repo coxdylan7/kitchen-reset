@@ -1,0 +1,107 @@
+<div id="kitchen-reset-preview" class="kr-root olive" aria-label="Kitchen Reset customer booking preview">
+  <style>
+    #kitchen-reset-preview { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: light-dark(#183128,#edf4ef); padding: 14px; }
+    #kitchen-reset-preview * { box-sizing: border-box; }
+    #kitchen-reset-preview .kr-phone { width: min(100%, 430px); margin: 0 auto; background: light-dark(#fffdf9,#15221c); border: 1px solid light-dark(#dce5df,#31463a); border-radius: 30px; box-shadow: 0 18px 48px rgba(25,45,35,.17); overflow: hidden; min-height: 700px; }
+    #kitchen-reset-preview .kr-top { padding: 22px 24px 16px; display:flex; justify-content:space-between; align-items:center; }
+    #kitchen-reset-preview .kr-brand { font-family: Georgia, serif; color: light-dark(#1e4937,#d7eddc); font-size: 23px; letter-spacing: -.5px; }
+    #kitchen-reset-preview .kr-brand b { color: light-dark(#c66537,#ed9a70); font-weight: normal; }
+    #kitchen-reset-preview .kr-step { color: light-dark(#647269,#a9b8ae); font-size: 12px; font-weight: 700; }
+    #kitchen-reset-preview .kr-progress { height: 4px; margin: 0 24px; border-radius: 4px; background: light-dark(#e8eee9,#263930); overflow:hidden; }
+    #kitchen-reset-preview .kr-progress i { display:block; height:100%; width:25%; background:light-dark(#2f6b52,#8ac6a2); border-radius:inherit; transition:width .25s; }
+    #kitchen-reset-preview .kr-content { padding: 30px 24px 20px; }
+    #kitchen-reset-preview h2 { font-family: Georgia, serif; font-size: 30px; line-height:1.08; letter-spacing:-.8px; margin:0 0 12px; color: light-dark(#19392c,#f2f7f3); }
+    #kitchen-reset-preview .kr-lede { margin:0 0 25px; color:light-dark(#5d6a62,#b2c0b6); font-size:15px; line-height:1.5; }
+    #kitchen-reset-preview .kr-photos { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    #kitchen-reset-preview .kr-photo { min-height:128px; border:1.5px dashed light-dark(#90ac9b,#638b73); border-radius:18px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:light-dark(#2f6b52,#9ad1ad); background:light-dark(#f4f8f3,#1a2c22); font-size:13px; font-weight:650; cursor:pointer; }
+    #kitchen-reset-preview .kr-photo span { font-size:26px; line-height:1; }
+    #kitchen-reset-preview .kr-photo.done { border-style:solid; background:light-dark(#edf7ed,#244432); color:light-dark(#24573f,#b9e6c7); }
+    #kitchen-reset-preview .kr-note { display:flex; gap:10px; align-items:flex-start; margin-top:18px; padding:12px 13px; background:light-dark(#fbf2e9,#35271e); border-radius:13px; color:light-dark(#72503b,#f0c4a7); font-size:12px; line-height:1.45; }
+    #kitchen-reset-preview .kr-note span { font-size:16px; }
+    #kitchen-reset-preview .kr-footer { padding:12px 24px 24px; }
+    #kitchen-reset-preview button { font:inherit; border:0; cursor:pointer; }
+    #kitchen-reset-preview .kr-primary { width:100%; padding:15px 18px; border-radius:14px; background:light-dark(#2f6b52,#8ac6a2); color:light-dark(#ffffff,#123021); font-weight:750; font-size:15px; }
+    #kitchen-reset-preview .kr-primary:disabled { opacity:.45; cursor:default; }
+    #kitchen-reset-preview .kr-back { background:transparent; color:light-dark(#486558,#b6ceb9); padding:9px 0 0; width:100%; font-size:13px; }
+    #kitchen-reset-preview .kr-hidden { display:none; }
+    #kitchen-reset-preview .kr-estimate { background:light-dark(#f2f7f1,#1d3025); border-radius:19px; padding:18px; border:1px solid light-dark(#dbe9dc,#31503b); }
+    #kitchen-reset-preview .kr-estimate-top { display:flex; justify-content:space-between; align-items:start; }
+    #kitchen-reset-preview .kr-label { text-transform:uppercase; letter-spacing:1px; font-size:10px; font-weight:800; color:light-dark(#61786a,#a8b9ae); }
+    #kitchen-reset-preview .kr-price { color:light-dark(#1d4937,#ccefd7); font-family:Georgia, serif; font-size:40px; letter-spacing:-1px; }
+    #kitchen-reset-preview .kr-tier { font-size:18px; font-weight:750; margin:5px 0 5px; }
+    #kitchen-reset-preview .kr-list { margin:18px 0 0; padding:0; list-style:none; }
+    #kitchen-reset-preview .kr-list li { display:flex; justify-content:space-between; padding:10px 0; border-top:1px solid light-dark(#dce7de,#304c39); font-size:13px; color:light-dark(#526258,#b5c5b9); }
+    #kitchen-reset-preview .kr-list strong { color:light-dark(#274838,#d8e9dd); }
+    #kitchen-reset-preview .kr-chip { display:inline-flex; align-items:center; gap:6px; margin:15px 0; border-radius:999px; padding:7px 10px; font-size:12px; background:light-dark(#fff0e5,#422b20); color:light-dark(#9b5131,#f1ad8b); }
+    #kitchen-reset-preview .kr-time { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:18px 0; }
+    #kitchen-reset-preview .kr-slot { text-align:left; padding:13px; border:1px solid light-dark(#d5e0d8,#395544); border-radius:14px; color:light-dark(#3e5c4c,#c1d6c5); background:transparent; font-size:13px; }
+    #kitchen-reset-preview .kr-slot.selected { background:light-dark(#e7f2e9,#274a35); border-color:light-dark(#2f6b52,#8ac6a2); color:light-dark(#1f513b,#e0f5e6); }
+    #kitchen-reset-preview .kr-slot small { display:block; opacity:.75; margin-top:4px; }
+    #kitchen-reset-preview .kr-alert { background:light-dark(#fff4e8,#3a2a1e); border:1px solid light-dark(#f1ceb4,#6d4931); border-radius:16px; padding:16px; }
+    #kitchen-reset-preview .kr-alert h3 { margin:0 0 7px; font-size:17px; color:light-dark(#86462e,#f2b493); }
+    #kitchen-reset-preview .kr-alert p { margin:0; font-size:13px; line-height:1.45; color:light-dark(#775646,#ddc3b4); }
+    #kitchen-reset-preview .kr-bonus { margin:16px 0; padding:14px; border-radius:16px; background:light-dark(#f4f8f3,#1c3025); }
+    #kitchen-reset-preview .kr-bonus-head { display:flex; justify-content:space-between; font-size:13px; font-weight:700; }
+    #kitchen-reset-preview input[type=range] { width:100%; accent-color:light-dark(#c66537,#ed9a70); margin:15px 0 5px; }
+    #kitchen-reset-preview .kr-bonus-scale { display:flex; justify-content:space-between; font-size:11px; color:light-dark(#78877d,#96aa9c); }
+    #kitchen-reset-preview .kr-summary { padding:14px 0 0; margin-top:15px; border-top:1px solid light-dark(#dce7de,#314a3a); font-size:13px; }
+    #kitchen-reset-preview .kr-summary div { display:flex; justify-content:space-between; padding:5px 0; color:light-dark(#617066,#b4c1b8); }
+    #kitchen-reset-preview .kr-summary b { color:light-dark(#233b2f,#e0ece4); }
+    #kitchen-reset-preview.citrus .kr-primary, #kitchen-reset-preview.citrus .kr-progress i { background:light-dark(#bb6038,#edaa7c); }
+    #kitchen-reset-preview.citrus .kr-brand { color:light-dark(#7b452f,#f0c4aa); }
+  </style>
+  <div class="kr-phone">
+    <div class="kr-top"><div class="kr-brand">kitchen <b>reset</b></div><div class="kr-step" id="kr-step">1 of 4</div></div>
+    <div class="kr-progress"><i id="kr-progress"></i></div>
+    <main class="kr-content">
+      <section id="kr-screen-1">
+        <h2>Show us your kitchen.</h2>
+        <p class="kr-lede">A few guided photos help us give you a fair, upfront price.</p>
+        <div class="kr-photos">
+          <button type="button" class="kr-photo" data-photo="sink"><span>⌁</span>Full sink view</button>
+          <button type="button" class="kr-photo" data-photo="counter"><span>⌑</span>Counter &amp; drying area</button>
+          <button type="button" class="kr-photo" data-photo="cookware"><span>◒</span>Cookware</button>
+          <button type="button" class="kr-photo" data-photo="wide"><span>⊞</span>Wide view <small>(optional)</small></button>
+        </div>
+        <div class="kr-note"><span>♧</span><div>Only include the dishes and immediate work area. We never use an always-on camera.</div></div>
+      </section>
+      <section id="kr-screen-2" class="kr-hidden">
+        <div class="kr-chip">✦ Assessment complete</div>
+        <h2>Your kitchen reset is ready.</h2>
+        <p class="kr-lede">Based on the visible load, this looks like a Standard Reset.</p>
+        <div class="kr-estimate">
+          <div class="kr-estimate-top"><div><div class="kr-label">All-in service price</div><div class="kr-tier">Standard Reset</div></div><div class="kr-price">$79</div></div>
+          <ul class="kr-list"><li><span>Estimated service</span><strong>70 minutes</strong></li><li><span>Includes</span><strong>Wash, dry &amp; put away</strong></li><li><span>Kitchen area</span><strong>Sink + nearby counter</strong></li></ul>
+        </div>
+      </section>
+      <section id="kr-screen-3" class="kr-hidden">
+        <h2>When should it be finished?</h2>
+        <p class="kr-lede">Choose a requested completion time. We’ll clearly tell you once it’s confirmed.</p>
+        <div class="kr-time"><button type="button" class="kr-slot selected">Today<small>By 7:00 PM</small></button><button type="button" class="kr-slot">Today<small>By 9:00 PM</small></button><button type="button" class="kr-slot">Tomorrow<small>By 10:00 AM</small></button><button type="button" class="kr-slot">Tomorrow<small>By 6:00 PM</small></button></div>
+        <div class="kr-note"><span>◷</span><div>Requested deadline: Today by 7:00 PM. You’ll receive an alert if it becomes at risk.</div></div>
+      </section>
+      <section id="kr-screen-4" class="kr-hidden">
+        <div class="kr-alert"><h3>Your deadline needs attention.</h3><p>A cleaner has not yet been assigned for 7:00 PM. You can keep matching, choose a later deadline, or add a customer-approved urgency bonus.</p></div>
+        <div class="kr-bonus"><div class="kr-bonus-head"><span>Urgency bonus</span><strong id="kr-bonus-value">$10</strong></div><input id="kr-bonus" type="range" min="0" max="30" value="10" step="10" aria-label="Urgency bonus"><div class="kr-bonus-scale"><span>$0</span><span>$10</span><span>$20</span><span>$30</span></div></div>
+        <div class="kr-summary"><div><span>Kitchen Reset</span><b>$79</b></div><div><span>Urgency bonus, paid to worker</span><b id="kr-summary-bonus">$10</b></div><div><span>Today by 7:00 PM</span><b id="kr-total">$89 total</b></div></div>
+      </section>
+    </main>
+    <div class="kr-footer"><button id="kr-next" type="button" class="kr-primary" disabled>Continue</button><button id="kr-back" type="button" class="kr-back kr-hidden">Back</button></div>
+  </div>
+  <script>
+    (() => {
+      const root = document.getElementById('kitchen-reset-preview');
+      const screens = [1,2,3,4]; let page = 1; let photos = 0;
+      const next = document.getElementById('kr-next'); const back = document.getElementById('kr-back');
+      function render(){ screens.forEach(n => document.getElementById(`kr-screen-${n}`).classList.toggle('kr-hidden', n !== page)); document.getElementById('kr-step').textContent = `${page} of 4`; document.getElementById('kr-progress').style.width = `${page * 25}%`; next.disabled = page === 1 && photos < 3; next.textContent = page === 1 ? 'See my estimate' : page === 2 ? 'Choose a deadline' : page === 3 ? 'Continue' : 'Keep matching'; back.classList.toggle('kr-hidden', page === 1); }
+      document.querySelectorAll('.kr-photo').forEach(btn => btn.addEventListener('click', () => { if(!btn.classList.contains('done')) { btn.classList.add('done'); btn.innerHTML = '<span>✓</span>Added'; photos++; render(); } }));
+      document.querySelectorAll('.kr-slot').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('.kr-slot').forEach(x => x.classList.remove('selected')); btn.classList.add('selected'); }));
+      next.addEventListener('click', () => { if (page < 4) { page++; render(); } }); back.addEventListener('click', () => { if (page > 1) { page--; render(); } });
+      const bonus = document.getElementById('kr-bonus'); bonus.addEventListener('input', () => { const amount = Number(bonus.value); document.getElementById('kr-bonus-value').textContent = `$${amount}`; document.getElementById('kr-summary-bonus').textContent = `$${amount}`; document.getElementById('kr-total').textContent = `$${79 + amount} total`; });
+      const state = { theme: 'olive' };
+      function refreshTheme(){ root.classList.toggle('citrus', state.theme === 'citrus'); }
+      if (globalThis.Tweak) { const tweak = new Tweak({ container: root, onChange: refreshTheme }); tweak.addSelect(state, 'theme', { label: 'Culinary accent', options: [{ label: 'Herb green', value: 'olive' }, { label: 'Terracotta', value: 'citrus' }] }); }
+      render();
+    })();
+  </script>
+</div>
