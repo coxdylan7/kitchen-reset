@@ -206,8 +206,8 @@ function updateAccountButton() {
 }
 
 accountButton.addEventListener("click", () => {
-  accountPanel.classList.toggle("hidden");
-  if (!accountPanel.classList.contains("hidden")) document.querySelector("#account-email").focus();
+  accountPanel.classList.remove("hidden");
+  document.querySelector("#account-email").focus();
 });
 document.querySelector("#close-account").addEventListener("click", () => accountPanel.classList.add("hidden"));
 document.querySelector("#sign-out").addEventListener("click", async () => {
