@@ -55,12 +55,12 @@
         <div id="admin-bookings" class="admin-bookings"></div>
         <div class="admin-settings">
           <div class="section-heading"><span>Pilot addresses</span><small>Service area controls</small></div>
-          <form id="address-form" class="admin-form">
-            <input id="pilot-address" class="text-field" placeholder="123 Bedford Avenue, Brooklyn" required />
+          <form id="region-form" class="admin-form">
+            <input id="pilot-region" class="text-field" placeholder="Williamsburg" required />
             <select id="pilot-borough" class="text-field"><option>Brooklyn</option><option>Manhattan</option></select>
-            <button class="primary-button" type="submit">Add address</button>
+            <button class="primary-button" type="submit">Add region</button>
           </form>
-          <div id="pilot-addresses" class="admin-bookings"></div>
+          <div id="pilot-regions" class="admin-bookings"></div>
         </div>
       </section>
 
@@ -76,7 +76,7 @@
         <form id="pro-form">
           <label class="field-label" for="pro-name">Name</label><input id="pro-name" class="text-field" required />
           <label class="field-label" for="pro-email">Email</label><input id="pro-email" class="text-field" type="email" required />
-          <label class="field-label" for="pro-neighborhood">Neighborhood</label><input id="pro-neighborhood" class="text-field" placeholder="Bedford-Stuyvesant" required />
+          <label class="field-label" for="pro-region">Preferred service region</label><select id="pro-region" class="text-field" required><option value="">Choose a region</option></select>
           <label class="field-label" for="pro-experience">Relevant experience</label><textarea id="pro-experience" class="text-field" rows="3" required></textarea>
           <button class="primary-button" type="submit">Submit application</button>
         </form>
@@ -101,7 +101,7 @@
           <option value="150 Orchard Street, Manhattan"></option>
         </datalist>
         <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
-        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a></div></div>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><iframe id="map-preview" title="Address map preview" loading="lazy"></iframe></div></div>
       </section>
 
       <section id="screen-photos" class="screen">

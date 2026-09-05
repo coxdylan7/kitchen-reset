@@ -46,13 +46,15 @@ async function locateAddress(address) {
   const result = results[0];
   if (!result) return null;
   const borough = result.address?.borough || result.address?.city_district || "";
-  const { data: pilotAddresses } = supabaseClient
-    ? await supabaseClient.from("pilot_addresses").select("address").eq("active", true)
+  const { data: pilotRegions } = supabaseClient
+    ? await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true)
     : { data: [] };
-  const inPilot = pilotAddresses?.length
-    ? pilotAddresses.some(item => result.display_name.toLowerCase().includes(item.address.toLowerCase()))
+  const searchText = `${result.display_name} ${Object.values(result.address || {}).join(" ")}`.toLowerCase();
+  const matchedRegion = pilotRegions?.find(region => searchText.includes(region.name.toLowerCase()));
+  const inPilot = pilotRegions?.length
+    ? Boolean(matchedRegion)
     : /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
-  return { ...result, borough, inPilot };
+  return { ...result, borough, inPilot, matchedRegion };
 }
 
 function showAddressResult(result) {
@@ -61,6 +63,7 @@ function showAddressResult(result) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
+  document.querySelector("#map-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=${Number(result.lon) - 0.01}%2C${Number(result.lat) - 0.01}%2C${Number(result.lon) + 0.01}%2C${Number(result.lat) + 0.01}&layer=mapnik&marker=${encodeURIComponent(result.lat)}%2C${encodeURIComponent(result.lon)}`;
 }
 
 function showMapSearch(address) {
@@ -68,6 +71,7 @@ function showMapSearch(address) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
   document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
+  document.querySelector("#map-preview").removeAttribute("src");
 }
 
 function showStep(step) {
@@ -387,7 +391,8 @@ document.querySelector("#pro-form").addEventListener("submit", async event => {
   const { error } = await supabaseClient.from("professional_applications").insert({
     name: document.querySelector("#pro-name").value.trim(),
     email: document.querySelector("#pro-email").value.trim(),
-    neighborhood: document.querySelector("#pro-neighborhood").value.trim(),
+    neighborhood: document.querySelector("#pro-region").value,
+    region: document.querySelector("#pro-region").value,
     experience: document.querySelector("#pro-experience").value.trim()
   });
   status.textContent = error ? error.message : "Application received. We’ll be in touch after review.";
@@ -425,15 +430,15 @@ async function loadAdminBookings() {
 }
 
 async function loadPilotAddresses() {
-  const list = document.querySelector("#pilot-addresses");
-  const { data, error } = await supabaseClient.from("pilot_addresses").select("id,address,borough,active").order("address");
+  const list = document.querySelector("#pilot-regions");
+  const { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,active").order("name");
   if (error) {
     list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
     return;
   }
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.address}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button></small></div>`).join("")
-    : "<p class=\"field-hint\">No pilot addresses configured.</p>";
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button></small></div>`).join("")
+    : "<p class=\"field-hint\">No pilot regions configured.</p>";
   list.querySelectorAll(".address-toggle").forEach(button => button.addEventListener("click", async () => {
     const { error: updateError } = await supabaseClient.from("pilot_addresses").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
     if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
@@ -441,10 +446,10 @@ async function loadPilotAddresses() {
   }));
 }
 
-document.querySelector("#address-form").addEventListener("submit", async event => {
+document.querySelector("#region-form").addEventListener("submit", async event => {
   event.preventDefault();
-  const { error } = await supabaseClient.from("pilot_addresses").insert({
-    address: document.querySelector("#pilot-address").value.trim(),
+  const { error } = await supabaseClient.from("pilot_regions").insert({
+    name: document.querySelector("#pilot-region").value.trim(),
     borough: document.querySelector("#pilot-borough").value
   });
   if (error) {
@@ -454,6 +459,16 @@ document.querySelector("#address-form").addEventListener("submit", async event =
   event.target.reset();
   loadPilotAddresses();
 });
+
+async function loadProfessionalRegions() {
+  const select = document.querySelector("#pro-region");
+  const { data } = await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true).order("name");
+  if (data?.length) {
+    select.innerHTML = '<option value="">Choose a region</option>' +
+      data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}</option>`).join("");
+  }
+}
+loadProfessionalRegions();
 
 async function loadCustomerBookings() {
   const status = document.querySelector("#customer-status");

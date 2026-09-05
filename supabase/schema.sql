@@ -36,20 +36,33 @@ create table if not exists public.pilot_addresses (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.pilot_regions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  borough text not null check (borough in ('Brooklyn', 'Manhattan')),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.professional_applications (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   email text not null,
   neighborhood text not null,
+  region text,
   experience text not null,
   status text not null default 'new' check (status in ('new', 'reviewing', 'approved', 'declined')),
   created_at timestamptz not null default now()
 );
 
+alter table public.professional_applications
+  add column if not exists region text;
+
 alter table public.bookings enable row level security;
 alter table public.booking_photos enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.pilot_addresses enable row level security;
+alter table public.pilot_regions enable row level security;
 alter table public.professional_applications enable row level security;
 
 create policy "Users can view their bookings"
@@ -74,6 +87,14 @@ create policy "Users can check their admin access"
   on public.admin_users for select using (auth.uid() = user_id);
 create policy "Anyone can view active pilot addresses"
   on public.pilot_addresses for select using (active = true);
+create policy "Anyone can view active pilot regions"
+  on public.pilot_regions for select using (active = true);
+create policy "Admins can manage pilot regions"
+  on public.pilot_regions for all using (
+    exists (select 1 from public.admin_users where user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.admin_users where user_id = auth.uid())
+  );
 create policy "Admins can manage pilot addresses"
   on public.pilot_addresses for all using (
     exists (select 1 from public.admin_users where user_id = auth.uid())
