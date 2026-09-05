@@ -713,8 +713,11 @@ async function loadWorkerJobs() {
   workerJobs.clear();
   data.forEach(job => workerJobs.set(job.id, job));
   assignments.innerHTML = data.length
-    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
+    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><div class="worker-job-details"><b>Job details</b><span>Service: ${job.service_tier}</span><span>Address: ${job.address}</span><span>Deadline: ${job.deadline}</span><span>Duration: ${job.duration_minutes} minutes</span><span>Customer payout: $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</span><button class="primary-button worker-job-accept-inline" type="button" data-job-id="${job.id}">Accept job</button></div><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
     : "<p class=\"field-hint\">No open jobs are available right now.</p>";
+  assignments.querySelectorAll(".worker-job-accept-inline").forEach(button => {
+    button.addEventListener("click", () => acceptWorkerJob(button.dataset.jobId, button));
+  });
   assignments.querySelectorAll(".worker-job-button").forEach(button => {
     button.addEventListener("click", () => showWorkerJobReview(button.dataset.jobId));
   });
@@ -741,22 +744,28 @@ document.querySelector("#close-worker-job-review").addEventListener("click", () 
 });
 document.querySelector("#worker-job-accept").addEventListener("click", async () => {
   const review = document.querySelector("#worker-job-review");
+  await acceptWorkerJob(review.dataset.jobId, document.querySelector("#worker-job-accept"));
+});
+
+async function acceptWorkerJob(jobId, button) {
   const status = document.querySelector("#worker-job-review-status");
-  if (!currentUser || !review.dataset.jobId) return;
+  if (!currentUser || !jobId) return;
+  button.disabled = true;
   const { error } = await supabaseClient.from("bookings")
     .update({ worker_id: currentUser.id, status: "assigned" })
-    .eq("id", review.dataset.jobId)
+    .eq("id", jobId)
     .eq("status", "matching")
     .is("worker_id", null);
   if (error) {
     status.textContent = `This job could not be accepted: ${error.message}`;
     status.classList.add("error");
+    button.disabled = false;
     return;
   }
   status.textContent = "Job accepted.";
   status.classList.remove("error");
   loadWorkerJobs();
-});
+}
 
 async function saveWorkerProfile(name, region) {
   if (!supabaseClient || !currentUser) throw new Error("Sign in before saving a worker profile.");
