@@ -707,16 +707,25 @@ document.querySelector("#lookup-admin-region").addEventListener("click", async (
   try {
     const candidate = await lookupAddressCandidate(input.value.trim());
     const attrs = candidate.attributes || {};
+    const regionValue = String(attrs.RegionAbbr || attrs.RegionCode || attrs.Region || candidate.address.match(/\b(NY|NJ|CT)\b/i)?.[1] || "").toUpperCase();
+    const state = { "NEW YORK": "NY", "NEW JERSEY": "NJ", CONNECTICUT: "CT" }[regionValue] || regionValue;
+    const borough = attrs.District || attrs.City || attrs.Subregion || "";
+    if (!["NY", "NJ", "CT"].includes(state) || !borough) {
+      throw new Error("Choose a neighborhood, city, or county in NY, NJ, or CT.");
+    }
     selectedAdminRegion = {
       name: candidate.address.split(",")[0],
-      borough: attrs.District || attrs.City || attrs.Subregion || "",
-      state: attrs.RegionAbbr || "",
+      borough,
+      state,
       lat: candidate.location.y,
       lon: candidate.location.x
     };
     input.value = selectedAdminRegion.name;
     document.querySelector("#pilot-borough").value = selectedAdminRegion.borough;
     document.querySelector("#pilot-state").value = selectedAdminRegion.state;
+    if (document.querySelector("#pilot-state").value !== selectedAdminRegion.state) {
+      throw new Error("The map result returned an unsupported state.");
+    }
     document.querySelector("#pilot-map-url").value = `https://www.openstreetmap.org/?mlat=${selectedAdminRegion.lat}&mlon=${selectedAdminRegion.lon}#map=13/${selectedAdminRegion.lat}/${selectedAdminRegion.lon}`;
     const bbox = `${selectedAdminRegion.lon - 0.04},${selectedAdminRegion.lat - 0.03},${selectedAdminRegion.lon + 0.04},${selectedAdminRegion.lat + 0.03}`;
     const frame = document.querySelector("#admin-region-map");
