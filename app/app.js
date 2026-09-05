@@ -691,8 +691,8 @@ async function loadWorkerPortal() {
       status.textContent = "Save your worker profile, then choose Go available to load open jobs.";
     }
   }
-  if (profile?.available) await loadWorkerJobs();
-  else assignments.innerHTML = "<p class=\"field-hint\">Go available to see open jobs.</p>";
+  if (profile) await loadWorkerJobs();
+  else assignments.innerHTML = "<p class=\"field-hint\">Save your worker profile to see open jobs.</p>";
 }
 
 async function loadWorkerJobs() {
@@ -713,7 +713,7 @@ async function loadWorkerJobs() {
   workerJobs.clear();
   data.forEach(job => workerJobs.set(job.id, job));
   assignments.innerHTML = data.length
-    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><div class="worker-job-details"><b>Job details</b><span>Service: ${job.service_tier}</span><span>Address: ${job.address}</span><span>Deadline: ${job.deadline}</span><span>Duration: ${job.duration_minutes} minutes</span><span>Customer payout: $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</span><button class="primary-button worker-job-accept-inline" type="button" data-job-id="${job.id}">Accept job</button></div><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
+    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><details class="worker-job-details"><summary>Review job</summary><span>Service: ${job.service_tier}</span><span>Address: ${job.address}</span><span>Deadline: ${job.deadline}</span><span>Duration: ${job.duration_minutes} minutes</span><span>Customer payout: $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</span><button class="primary-button worker-job-accept-inline" type="button" data-job-id="${job.id}">Accept job</button></details></article>`).join("")
     : "<p class=\"field-hint\">No open jobs are available right now.</p>";
   assignments.querySelectorAll(".worker-job-accept-inline").forEach(button => {
     button.addEventListener("click", () => acceptWorkerJob(button.dataset.jobId, button));

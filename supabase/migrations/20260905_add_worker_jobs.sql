@@ -19,7 +19,7 @@ drop policy if exists "Workers can view open bookings" on public.bookings;
 create policy "Workers can view open bookings"
   on public.bookings for select using (
     status = 'matching'
-    and exists (select 1 from public.worker_profiles where user_id = auth.uid() and available = true)
+    and exists (select 1 from public.worker_profiles where user_id = auth.uid())
   );
 
 drop policy if exists "Workers can accept open bookings" on public.bookings;
