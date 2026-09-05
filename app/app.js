@@ -691,7 +691,8 @@ async function loadWorkerPortal() {
       status.textContent = "Save your worker profile, then choose Go available to load open jobs.";
     }
   }
-  if (profile) await loadWorkerJobs();
+  if (profile?.available) await loadWorkerJobs();
+  else if (profile) assignments.innerHTML = "<p class=\"field-hint\">Go available to see open jobs.</p>";
   else assignments.innerHTML = "<p class=\"field-hint\">Save your worker profile to see open jobs.</p>";
 }
 

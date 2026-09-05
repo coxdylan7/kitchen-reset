@@ -98,12 +98,12 @@ create policy "Admins can view all bookings"
 create policy "Workers can view open bookings"
   on public.bookings for select using (
     status = 'matching'
-    and exists (select 1 from public.worker_profiles where user_id = auth.uid())
+    and exists (select 1 from public.worker_profiles where user_id = auth.uid() and available = true)
   );
 create policy "Workers can accept open bookings"
   on public.bookings for update using (
     status = 'matching' and worker_id is null
-    and exists (select 1 from public.worker_profiles where user_id = auth.uid())
+    and exists (select 1 from public.worker_profiles where user_id = auth.uid() and available = true)
   ) with check (
     worker_id = auth.uid() and status = 'assigned'
   );
