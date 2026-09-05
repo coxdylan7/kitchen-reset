@@ -8,6 +8,8 @@ const accountPanel = document.querySelector("#account-panel");
 const customerPanel = document.querySelector("#customer-panel");
 const dashboardButton = document.querySelector("#dashboard-button");
 const dashboardLoginPanel = document.querySelector("#dashboard-login-panel");
+const proButton = document.querySelector("#pro-button");
+const proPanel = document.querySelector("#pro-panel");
 const adminButton = document.querySelector("#admin-button");
 const adminPanel = document.querySelector("#admin-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
@@ -25,9 +27,9 @@ let currentUser = null;
 
 function setAuthView(view) {
   document.querySelector("#account-form").classList.toggle("hidden", view !== "email");
-  document.querySelector("#password-form").classList.toggle("hidden", view !== "password");
   document.querySelector("#set-password-form").classList.toggle("hidden", view !== "set-password");
-  document.querySelector("#password-login-toggle").classList.toggle("hidden", view === "set-password" || view === "password");
+  document.querySelector("#create-account-button").classList.toggle("hidden", view !== "email");
+  document.querySelector("#magic-link-button").classList.toggle("hidden", view !== "email");
 }
 
 function showPasswordSetup() {
@@ -38,13 +40,18 @@ function showPasswordSetup() {
 
 async function locateAddress(address) {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(address + ", New York")}`;
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error("The address service is unavailable. Please try again.");
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("The address service is unavailable. Use the map link to verify it.");
   const results = await response.json();
   const result = results[0];
   if (!result) return null;
   const borough = result.address?.borough || result.address?.city_district || "";
-  const inPilot = /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
+  const { data: pilotAddresses } = supabaseClient
+    ? await supabaseClient.from("pilot_addresses").select("address").eq("active", true)
+    : { data: [] };
+  const inPilot = pilotAddresses?.length
+    ? pilotAddresses.some(item => result.display_name.toLowerCase().includes(item.address.toLowerCase()))
+    : /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
   return { ...result, borough, inPilot };
 }
 
@@ -54,6 +61,13 @@ function showAddressResult(result) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
+}
+
+function showMapSearch(address) {
+  const addressResult = document.querySelector("#address-result");
+  addressResult.classList.remove("hidden");
+  document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
+  document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
 }
 
 function showStep(step) {
@@ -159,13 +173,14 @@ next.addEventListener("click", async () => {
     next.disabled = true;
     hint.classList.remove("error");
     hint.textContent = "Checking the address…";
+    showMapSearch(state.address);
     try {
       const result = await locateAddress(state.address);
       if (!result) throw new Error("We couldn’t locate that address. Check the street, number, and borough.");
       if (!result.inPilot) {
         hint.textContent = "That address is outside the current NYC pilot area. Try a Brooklyn or Manhattan address.";
         hint.classList.add("error");
-        document.querySelector("#address-result").classList.add("hidden");
+        showMapSearch(state.address);
         next.disabled = false;
         return;
       }
@@ -174,7 +189,7 @@ next.addEventListener("click", async () => {
     } catch (error) {
       hint.textContent = error.message;
       hint.classList.add("error");
-      document.querySelector("#address-result").classList.add("hidden");
+      showMapSearch(state.address);
       next.disabled = false;
       return;
     }
@@ -219,7 +234,8 @@ function updateAccountButton() {
   accountButton.textContent = currentUser ? "Account" : "Sign in";
   accountButton.classList.toggle("signed-in", Boolean(email));
   document.querySelector("#sign-out").classList.toggle("hidden", !email);
-  document.querySelector("#password-login-toggle").classList.toggle("hidden", Boolean(currentUser));
+  document.querySelector("#create-account-button").classList.toggle("hidden", Boolean(currentUser));
+  document.querySelector("#magic-link-button").classList.toggle("hidden", Boolean(currentUser));
   dashboardButton.textContent = currentUser ? "My bookings" : "Dashboard";
   if (currentUser) {
     accountPanel.classList.add("hidden");
@@ -274,6 +290,7 @@ document.querySelector("#customer-sign-out").addEventListener("click", signOut);
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
+  const password = document.querySelector("#account-password").value;
   if (!supabaseClient) {
     localStorage.setItem("kitchenResetEmail", email);
     document.querySelector("#account-status").textContent = supabaseInitError
@@ -282,26 +299,34 @@ document.querySelector("#account-form").addEventListener("submit", event => {
     updateAccountButton();
     return;
   }
-  supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
-    .then(({ error }) => {
-      if (error) throw error;
-      document.querySelector("#account-status").textContent = "Check your email for a secure sign-in link.";
+  supabaseClient.auth.signInWithPassword({ email, password })
+    .then(async ({ error }) => {
+      if (!error) {
+        document.querySelector("#account-status").textContent = "Signed in.";
+        return;
+      }
+      document.querySelector("#account-status").textContent = `${error.message} New customers can use Create an account.`;
     })
     .catch(error => { document.querySelector("#account-status").textContent = error.message; });
 });
-document.querySelector("#password-login-toggle").addEventListener("click", () => {
-  setAuthView("password");
-  document.querySelector("#account-password").focus();
+document.querySelector("#create-account-button").addEventListener("click", async () => {
+  const email = document.querySelector("#account-email").value.trim();
+  const password = document.querySelector("#account-password").value;
+  if (!email || password.length < 8) {
+    document.querySelector("#account-status").textContent = "Enter an email and a password with at least 8 characters.";
+    return;
+  }
+  const { error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + window.location.pathname } });
+  document.querySelector("#account-status").textContent = error ? error.message : "Check your email to verify your new account.";
 });
-document.querySelector("#password-form").addEventListener("submit", async event => {
-  event.preventDefault();
-  const status = document.querySelector("#account-status");
-  status.textContent = "Signing in…";
-  const { error } = await supabaseClient.auth.signInWithPassword({
-    email: document.querySelector("#account-email").value.trim(),
-    password: document.querySelector("#account-password").value
-  });
-  status.textContent = error ? error.message : "Signed in.";
+document.querySelector("#magic-link-button").addEventListener("click", async () => {
+  const email = document.querySelector("#account-email").value.trim();
+  if (!email) {
+    document.querySelector("#account-status").textContent = "Enter your email first.";
+    return;
+  }
+  const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } });
+  document.querySelector("#account-status").textContent = error ? error.message : "Check your email for the sign-in link.";
 });
 document.querySelector("#set-password-form").addEventListener("submit", async event => {
   event.preventDefault();
@@ -332,6 +357,7 @@ if (supabaseClient) {
       updateAccountButton();
       if (!currentUser.user_metadata?.password_set) showPasswordSetup();
     }
+
     updateAdminAccess();
   });
   supabaseClient.auth.onAuthStateChange((_event, session) => {
@@ -348,6 +374,25 @@ if (supabaseClient) {
     updateAdminAccess();
   });
 }
+
+proButton.addEventListener("click", () => proPanel.classList.remove("hidden"));
+document.querySelector("#close-pro").addEventListener("click", () => proPanel.classList.add("hidden"));
+document.querySelector("#pro-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const status = document.querySelector("#pro-status");
+  if (!supabaseClient) {
+    status.textContent = "Connect Supabase before submitting an application.";
+    return;
+  }
+  const { error } = await supabaseClient.from("professional_applications").insert({
+    name: document.querySelector("#pro-name").value.trim(),
+    email: document.querySelector("#pro-email").value.trim(),
+    neighborhood: document.querySelector("#pro-neighborhood").value.trim(),
+    experience: document.querySelector("#pro-experience").value.trim()
+  });
+  status.textContent = error ? error.message : "Application received. We’ll be in touch after review.";
+  if (!error) event.target.reset();
+});
 
 async function updateAdminAccess() {
   if (!supabaseClient || !currentUser) {
@@ -376,7 +421,39 @@ async function loadAdminBookings() {
   list.innerHTML = data.length
     ? data.map(booking => `<div class="admin-booking"><strong>${booking.service_tier} · $${(booking.price_cents / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline} · ${booking.status}</small></div>`).join("")
     : "<p class=\"field-hint\">No bookings yet.</p>";
+  loadPilotAddresses();
 }
+
+async function loadPilotAddresses() {
+  const list = document.querySelector("#pilot-addresses");
+  const { data, error } = await supabaseClient.from("pilot_addresses").select("id,address,borough,active").order("address");
+  if (error) {
+    list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
+    return;
+  }
+  list.innerHTML = data.length
+    ? data.map(item => `<div class="admin-booking"><strong>${item.address}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button></small></div>`).join("")
+    : "<p class=\"field-hint\">No pilot addresses configured.</p>";
+  list.querySelectorAll(".address-toggle").forEach(button => button.addEventListener("click", async () => {
+    const { error: updateError } = await supabaseClient.from("pilot_addresses").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
+    if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
+    else loadPilotAddresses();
+  }));
+}
+
+document.querySelector("#address-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const { error } = await supabaseClient.from("pilot_addresses").insert({
+    address: document.querySelector("#pilot-address").value.trim(),
+    borough: document.querySelector("#pilot-borough").value
+  });
+  if (error) {
+    document.querySelector("#admin-status").textContent = error.message;
+    return;
+  }
+  event.target.reset();
+  loadPilotAddresses();
+});
 
 async function loadCustomerBookings() {
   const status = document.querySelector("#customer-status");
