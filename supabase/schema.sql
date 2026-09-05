@@ -107,6 +107,8 @@ create policy "Workers can accept open bookings"
   ) with check (
     worker_id = auth.uid() and status = 'assigned'
   );
+create policy "Workers can view their assigned bookings"
+  on public.bookings for select using (worker_id = auth.uid());
 create policy "Workers can manage their worker profile"
   on public.worker_profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 

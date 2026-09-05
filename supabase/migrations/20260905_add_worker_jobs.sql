@@ -30,3 +30,7 @@ create policy "Workers can accept open bookings"
   ) with check (
     worker_id = auth.uid() and status = 'assigned'
   );
+
+drop policy if exists "Workers can view their assigned bookings" on public.bookings;
+create policy "Workers can view their assigned bookings"
+  on public.bookings for select using (worker_id = auth.uid());

@@ -694,6 +694,7 @@ async function loadWorkerPortal() {
   if (profile?.available) await loadWorkerJobs();
   else if (profile) assignments.innerHTML = "<p class=\"field-hint\">Go available to see open jobs.</p>";
   else assignments.innerHTML = "<p class=\"field-hint\">Save your worker profile to see open jobs.</p>";
+  await loadAcceptedWorkerJobs();
 }
 
 async function loadWorkerJobs() {
@@ -730,6 +731,25 @@ async function loadWorkerJobs() {
   assignments.querySelectorAll(".worker-job-button").forEach(button => {
     button.addEventListener("click", () => showWorkerJobReview(button.dataset.jobId));
   });
+}
+
+async function loadAcceptedWorkerJobs() {
+  const list = document.querySelector("#worker-accepted-jobs");
+  if (!supabaseClient || !currentUser) return;
+  const { data, error } = await supabaseClient
+    .from("bookings")
+    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at")
+    .eq("worker_id", currentUser.id)
+    .in("status", ["assigned", "in_progress", "completed"])
+    .order("created_at", { ascending: false })
+    .limit(25);
+  if (error) {
+    list.innerHTML = `<p class="field-hint error">Accepted jobs could not be loaded: ${error.message}</p>`;
+    return;
+  }
+  list.innerHTML = data.length
+    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${job.status}</span></article>`).join("")
+    : "<p class=\"field-hint\">No accepted jobs yet.</p>";
 }
 
 function showWorkerJobReview(jobId) {
@@ -775,6 +795,7 @@ async function acceptWorkerJob(jobId, button) {
   status.textContent = "Job accepted.";
   status.classList.remove("error");
   loadWorkerJobs();
+  loadAcceptedWorkerJobs();
 }
 
 async function saveWorkerProfile(name, region) {
