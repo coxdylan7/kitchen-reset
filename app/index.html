@@ -41,6 +41,12 @@
         <button id="magic-link-button" class="text-button" type="button">Email me a magic link instead</button>
         <p id="account-status" class="field-hint">Use the email address you want connected to your bookings.</p>
         <button id="sign-out" class="secondary-button hidden" type="button">Sign out</button>
+        <div id="account-dashboard-content" class="hidden">
+          <div class="section-heading"><span>My bookings</span><small>Account home</small></div>
+          <p id="account-customer-status" class="field-hint">Loading your bookings…</p>
+          <div id="account-customer-bookings" class="booking-list"></div>
+          <div class="settings-block"><div class="section-heading"><span>Account settings</span><small id="account-email-display"></small></div><button id="account-dashboard-sign-out" class="secondary-button" type="button">Sign out</button></div>
+        </div>
       </div>
 
       <section id="customer-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
@@ -69,7 +75,8 @@
               <option value="Lower East Side"></option>
               <option value="Greenpoint"></option>
             </datalist>
-            <select id="pilot-borough" class="text-field"><option>Brooklyn</option><option>Manhattan</option></select>
+            <select id="pilot-state" class="text-field"><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="CT">Connecticut</option></select>
+            <input id="pilot-borough" class="text-field" placeholder="Borough, county, or city" required />
             <input id="pilot-description" class="text-field" placeholder="Short public description (optional)" />
             <input id="pilot-map-url" class="text-field" type="url" placeholder="OpenStreetMap region URL (optional)" />
             <button class="primary-button" type="submit">Add region</button>
@@ -114,13 +121,8 @@
         <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
         <label class="field-label" for="address">Apartment address</label>
         <select id="service-region" class="text-field" aria-label="Service region" required><option value="">Choose a service region first</option></select>
-        <input id="address" class="text-field" list="address-suggestions" autocomplete="street-address" placeholder="123 Example Street, Brooklyn" />
-        <datalist id="address-suggestions">
-          <option value="123 Bedford Avenue, Brooklyn"></option>
-          <option value="245 Wythe Avenue, Brooklyn"></option>
-          <option value="80 Rivington Street, Manhattan"></option>
-          <option value="150 Orchard Street, Manhattan"></option>
-        </datalist>
+        <input id="address" class="text-field" list="address-suggestions" autocomplete="street-address" placeholder="Start typing your full address" />
+        <datalist id="address-suggestions"></datalist>
         <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
         <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><button id="map-view-button" class="text-button" type="button">View map</button></div></div>
       </section>

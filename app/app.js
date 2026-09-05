@@ -28,6 +28,7 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
 }
 let currentUser = null;
 let mapSearchAddress = "";
+let addressSearchTimer = null;
 
 function openPage(panel) {
   [accountPanel, customerPanel, adminPanel, dashboardLoginPanel, directoryPanel, proPanel, mapPanel]
@@ -61,7 +62,8 @@ function showPasswordSetup() {
 }
 
 async function locateAddress(address) {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(address + ", New York")}`;
+  const selectedRegion = document.querySelector("#service-region").selectedOptions[0]?.textContent || "";
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(`${address}, ${selectedRegion}`)}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error("The address service is unavailable. Use the map link to verify it.");
   const results = await response.json();
@@ -72,13 +74,29 @@ async function locateAddress(address) {
     ? await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true)
     : { data: [] };
   const searchText = `${result.display_name} ${Object.values(result.address || {}).join(" ")}`.toLowerCase();
-  const selectedRegion = document.querySelector("#service-region").value;
-  const matchedRegion = pilotRegions?.find(region => region.name === selectedRegion && searchText.includes(region.name.toLowerCase()));
+  const selectedRegionName = document.querySelector("#service-region").value;
+  const matchedRegion = pilotRegions?.find(region => region.name === selectedRegionName && searchText.includes(region.name.toLowerCase()));
   const inPilot = pilotRegions?.length
     ? Boolean(matchedRegion)
     : /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
   return { ...result, borough, inPilot, matchedRegion };
 }
+
+async function suggestAddresses(value) {
+  if (value.trim().length < 3) return;
+  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent || "New York, New Jersey, Connecticut";
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&countrycodes=us&q=${encodeURIComponent(`${value}, ${region}`)}`;
+  const response = await fetch(url);
+  if (!response.ok) return;
+  const results = await response.json();
+  const datalist = document.querySelector("#address-suggestions");
+  datalist.innerHTML = results.map(result => `<option value="${result.display_name}"></option>`).join("");
+}
+
+document.querySelector("#address").addEventListener("input", event => {
+  clearTimeout(addressSearchTimer);
+  addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
+});
 
 function showAddressResult(result) {
   const addressResult = document.querySelector("#address-result");
@@ -278,16 +296,25 @@ function updateAccountButton() {
   document.querySelector("#magic-link-button").classList.toggle("hidden", Boolean(currentUser));
   dashboardButton.textContent = currentUser ? "My bookings" : "Dashboard";
   if (currentUser) {
-    accountPanel.classList.add("hidden");
+    document.querySelector("#account-dashboard-content").classList.remove("hidden");
+    document.querySelector("#account-email-display").textContent = currentUser.email;
     setAuthView("email");
+    document.querySelector("#account-form").classList.add("hidden");
+    document.querySelector("#set-password-form").classList.add("hidden");
+    document.querySelector("#create-account-button").classList.add("hidden");
+    document.querySelector("#magic-link-button").classList.add("hidden");
+    document.querySelector("#account-status").classList.add("hidden");
+  } else {
+    document.querySelector("#account-dashboard-content").classList.add("hidden");
+    document.querySelector("#account-form").classList.remove("hidden");
+    document.querySelector("#account-status").classList.remove("hidden");
   }
 }
 
 accountButton.addEventListener("click", () => {
   if (currentUser) {
-    openPage(customerPanel);
-    document.querySelector("#account-email-display").textContent = currentUser.email;
-    loadCustomerBookings();
+    openPage(accountPanel);
+    loadAccountBookings();
     return;
   }
   openPage(accountPanel);
@@ -333,6 +360,7 @@ async function signOut() {
 }
 document.querySelector("#sign-out").addEventListener("click", signOut);
 document.querySelector("#customer-sign-out").addEventListener("click", signOut);
+document.querySelector("#account-dashboard-sign-out").addEventListener("click", signOut);
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
@@ -474,14 +502,14 @@ async function loadAdminBookings() {
 async function loadPilotAddresses() {
   const list = document.querySelector("#pilot-regions");
   const suggestions = document.querySelector("#region-suggestions");
-  const { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,active").order("name");
+  const { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,state,active").order("name");
   if (error) {
     list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
     return;
   }
 
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
   const existing = new Set([...suggestions.options].map(option => option.value.toLowerCase()));
   data.forEach(item => {
@@ -527,7 +555,8 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
   event.preventDefault();
   const { error } = await supabaseClient.from("pilot_regions").insert({
     name: document.querySelector("#pilot-region").value.trim(),
-    borough: document.querySelector("#pilot-borough").value,
+    borough: document.querySelector("#pilot-borough").value.trim(),
+    state: document.querySelector("#pilot-state").value,
     description: document.querySelector("#pilot-description").value.trim() || null,
     map_url: document.querySelector("#pilot-map-url").value.trim() || null
   });
@@ -542,9 +571,10 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
   const addressRegion = document.querySelector("#service-region");
-  const { data } = await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true).order("name");
+  if (!supabaseClient) return;
+  const { data } = await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name");
   if (data?.length) {
-    const options = data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}</option>`).join("");
+    const options = data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
     select.innerHTML = '<option value="">Choose a region</option>' + options;
     addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
   }
@@ -565,6 +595,20 @@ async function loadCustomerBookings() {
     ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("")
     : "<p class=\"field-hint\">You have no bookings yet.</p>";
 }
+
+async function loadAccountBookings() {
+  const status = document.querySelector("#account-customer-status");
+  const list = document.querySelector("#account-customer-bookings");
+  if (!supabaseClient || !currentUser) return;
+  const { data, error } = await supabaseClient.from("bookings").select("service_tier,address,price_cents,bonus_cents,deadline,status").order("created_at", { ascending: false }).limit(20);
+  if (error) {
+    status.textContent = error.message;
+    return;
+  }
+  status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
+  list.innerHTML = data.length ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("") : "<p class=\"field-hint\">You have no bookings yet.</p>";
+}
+
 
 adminButton.addEventListener("click", () => {
   openPage(adminPanel);

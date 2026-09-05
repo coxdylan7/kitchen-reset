@@ -40,12 +40,16 @@ create table if not exists public.pilot_regions (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   borough text not null check (borough in ('Brooklyn', 'Manhattan')),
+  state text not null default 'NY' check (state in ('NY', 'NJ', 'CT')),
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 alter table public.pilot_regions add column if not exists description text;
 alter table public.pilot_regions add column if not exists map_url text;
+alter table public.pilot_regions add column if not exists state text not null default 'NY';
+alter table public.pilot_regions drop constraint if exists pilot_regions_borough_check;
+alter table public.pilot_regions add constraint pilot_regions_state_check check (state in ('NY', 'NJ', 'CT'));
 
 create table if not exists public.professional_applications (
   id uuid primary key default gen_random_uuid(),
