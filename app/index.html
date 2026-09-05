@@ -13,7 +13,6 @@
         <div class="header-actions">
           <span class="service-zone">NYC pilot</span>
           <button id="account-button" class="account-button" type="button">Sign in</button>
-          <button id="directory-button" class="account-button" type="button">Locations</button>
           <button id="pro-button" class="account-button" type="button">Work with us</button>
           <button id="admin-button" class="account-button hidden" type="button">Admin</button>
         </div>
@@ -43,7 +42,16 @@
           <div class="section-heading"><span>My bookings</span><small>Account home</small></div>
           <p id="account-customer-status" class="field-hint">Loading your bookings…</p>
           <div id="account-customer-bookings" class="booking-list"></div>
-          <div class="settings-block"><div class="section-heading"><span>Account settings</span><small id="account-email-display"></small></div><button id="account-dashboard-sign-out" class="secondary-button" type="button">Sign out</button></div>
+          <div class="settings-block">
+            <div class="section-heading"><span>Account settings</span><small id="account-email-display"></small></div>
+            <label class="field-label" for="account-address">Saved service address</label>
+            <input id="account-address" class="text-field" autocomplete="street-address" placeholder="Street address, city, state" />
+            <label class="field-label" for="account-region">Saved service region</label>
+            <select id="account-region" class="text-field"><option value="">Choose a region</option></select>
+            <button id="save-account-address" class="primary-button" type="button">Save address</button>
+            <p id="account-address-status" class="field-hint"></p>
+            <button id="account-dashboard-sign-out" class="secondary-button" type="button">Sign out</button>
+          </div>
         </div>
       </div>
 
@@ -70,12 +78,6 @@
           </form>
           <div id="pilot-regions" class="admin-bookings"></div>
         </div>
-      </section>
-
-      <section id="directory-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
-        <div class="panel-heading"><div><p class="eyebrow">Service directory</p><h2>Where Kitchen Reset is available</h2></div><button id="close-directory" class="close-button" type="button" aria-label="Close locations">×</button></div>
-        <p class="field-hint">Choose a region to see its pilot coverage and open it in OpenStreetMap.</p>
-        <div id="directory-regions" class="directory-list"></div>
       </section>
 
       <section id="pro-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
@@ -105,7 +107,7 @@
         <input id="address" class="text-field" list="address-suggestions" autocomplete="street-address" placeholder="Start typing your full address" />
         <datalist id="address-suggestions"></datalist>
         <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
-        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><a id="google-map-link" href="#" target="_blank" rel="noopener">Open in Google Maps</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>
       </section>
 
       <section id="map-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
@@ -113,6 +115,7 @@
         <p id="map-copy" class="field-hint"></p>
         <iframe id="map-page-preview" title="OpenStreetMap map preview" loading="lazy"></iframe>
         <a id="map-page-link" class="primary-button map-page-link" href="#" target="_blank" rel="noopener">Open full map in OpenStreetMap</a>
+        <a id="google-map-page-link" class="secondary-button map-page-link" href="#" target="_blank" rel="noopener">Open full map in Google Maps</a>
       </section>
 
       <section id="screen-photos" class="screen">

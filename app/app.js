@@ -5,8 +5,6 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
-const directoryButton = document.querySelector("#directory-button");
-const directoryPanel = document.querySelector("#directory-panel");
 const proButton = document.querySelector("#pro-button");
 const proPanel = document.querySelector("#pro-panel");
 const mapPanel = document.querySelector("#map-panel");
@@ -38,7 +36,7 @@ const fallbackRegions = [
 ];
 
 function openPage(panel) {
-  [accountPanel, adminPanel, directoryPanel, proPanel, mapPanel]
+  [accountPanel, adminPanel, proPanel, mapPanel]
     .filter(Boolean)
     .forEach(item => item.classList.add("hidden"));
   document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
@@ -90,11 +88,15 @@ async function locateAddress(address) {
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true)
     : { data: fallbackRegions };
   const activeRegions = pilotRegions?.length ? pilotRegions : fallbackRegions;
-  const searchText = `${result.display_name} ${Object.values(result.address || {}).join(" ")}`.toLowerCase();
   const selectedRegionName = document.querySelector("#service-region").value;
   const selectedOption = document.querySelector("#service-region").selectedOptions[0];
   const matchedRegion = activeRegions.find(region => region.name === selectedRegionName);
-  const inPilot = Boolean(matchedRegion && selectedOption?.dataset.state === result.address.state);
+  const regionText = `${result.display_name} ${result.address.city}`.toLowerCase();
+  const boroughMatches = matchedRegion && (
+    regionText.includes(matchedRegion.name.toLowerCase()) ||
+    regionText.includes(matchedRegion.borough.toLowerCase())
+  );
+  const inPilot = Boolean(matchedRegion && selectedOption?.dataset.state === result.address.state && boroughMatches);
   return { ...result, borough, inPilot, matchedRegion };
 }
 
@@ -120,10 +122,12 @@ function showAddressResult(result) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
+  document.querySelector("#google-map-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${result.lat},${result.lon}`)}`;
   mapSearchAddress = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
   document.querySelector("#map-title").textContent = result.display_name;
   document.querySelector("#map-copy").textContent = "Verified by OpenStreetMap.";
   document.querySelector("#map-page-link").href = mapSearchAddress;
+  document.querySelector("#google-map-page-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${result.lat},${result.lon}`)}`;
   setMapPreviews(result.lat, result.lon);
 }
 
@@ -155,6 +159,7 @@ function showMapSearch(address) {
   document.querySelector("#map-title").textContent = address;
   document.querySelector("#map-copy").textContent = `OpenStreetMap search preview for ${region}.`;
   document.querySelector("#map-page-link").href = mapSearchAddress;
+  document.querySelector("#google-map-page-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, ${region}`)}`;
   setMapPreviews(40.705, -73.99);
 }
 
@@ -331,6 +336,7 @@ function updateAccountButton() {
   if (currentUser) {
     document.querySelector("#account-dashboard-content").classList.remove("hidden");
     document.querySelector("#account-email-display").textContent = currentUser.email;
+    document.querySelector("#account-address").value = localStorage.getItem("kitchenResetAddress") || "";
     setAuthView("email");
     document.querySelector("#account-form").classList.add("hidden");
     document.querySelector("#set-password-form").classList.add("hidden");
@@ -354,11 +360,6 @@ accountButton.addEventListener("click", () => {
   setAuthView("email");
   document.querySelector("#account-email").focus();
 });
-directoryButton.addEventListener("click", () => {
-  openPage(directoryPanel);
-  loadDirectory();
-});
-document.querySelector("#close-directory").addEventListener("click", () => closePage(directoryPanel));
 document.querySelector("#close-map").addEventListener("click", () => closePage(mapPanel));
 document.querySelector("#close-account").addEventListener("click", () => closePage(accountPanel));
 async function signOut() {
@@ -380,6 +381,22 @@ async function signOut() {
   updateAccountButton();
 }
 document.querySelector("#account-dashboard-sign-out").addEventListener("click", signOut);
+document.querySelector("#save-account-address").addEventListener("click", () => {
+  const address = document.querySelector("#account-address").value.trim();
+  const region = document.querySelector("#account-region").value;
+  const status = document.querySelector("#account-address-status");
+  if (!address || !region) {
+    status.textContent = "Enter an address and choose a service region.";
+    status.classList.add("error");
+    return;
+  }
+  localStorage.setItem("kitchenResetAddress", address);
+  localStorage.setItem("kitchenResetRegion", region);
+  document.querySelector("#address").value = address;
+  document.querySelector("#service-region").value = region;
+  status.textContent = "Address saved. It will be used for your next booking.";
+  status.classList.remove("error");
+});
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
@@ -590,6 +607,7 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
   const addressRegion = document.querySelector("#service-region");
+  const accountRegion = document.querySelector("#account-region");
   const { data } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
     : { data: null };
@@ -597,6 +615,14 @@ async function loadProfessionalRegions() {
   const options = regions.map(region => `<option value="${region.name}" data-state="${region.state}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
   select.innerHTML = '<option value="">Choose a region</option>' + options;
   addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
+  accountRegion.innerHTML = '<option value="">Choose a region</option>' + options;
+  const savedRegion = localStorage.getItem("kitchenResetRegion");
+  if (savedRegion) {
+    addressRegion.value = savedRegion;
+    accountRegion.value = savedRegion;
+  }
+  const savedAddress = localStorage.getItem("kitchenResetAddress");
+  if (savedAddress) document.querySelector("#address").value = savedAddress;
 }
 loadProfessionalRegions();
 
