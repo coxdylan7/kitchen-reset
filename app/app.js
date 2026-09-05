@@ -27,6 +27,16 @@ let addressSearchTimer = null;
 let verifiedAccountAddress = "";
 let selectedAdminRegion = null;
 
+function distanceMiles(lat1, lon1, lat2, lon2) {
+  const radians = value => value * Math.PI / 180;
+  const earthRadius = 3958.8;
+  const deltaLat = radians(lat2 - lat1);
+  const deltaLon = radians(lon2 - lon1);
+  const a = Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLon / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function openPage(panel) {
   [accountPanel, adminPanel, proPanel, mapPanel]
     .filter(Boolean)
@@ -80,20 +90,20 @@ async function locateAddress(address) {
   if (!result) return null;
   const borough = result.address?.city || "";
   const { data: pilotRegions, error: regionError } = supabaseClient
-    ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true)
+    ? await supabaseClient.from("pilot_regions").select("name,borough,state,latitude,longitude,radius_miles").eq("active", true)
     : { data: [], error: new Error("Approved service regions are unavailable.") };
   if (regionError) throw new Error("Approved service regions are unavailable right now.");
   const activeRegions = pilotRegions || [];
-  const regionText = `${result.display_name} ${result.address.city} ${result.address.neighborhood || ""} ${result.address.district || ""} ${result.address.county || ""}`.toLowerCase();
-  const matchedRegion = activeRegions.find(region => region.state === result.address.state && regionText.includes(region.name.toLowerCase()));
-  const boroughMatches = matchedRegion && (
-    regionText.includes(matchedRegion.name.toLowerCase()) ||
-    regionText.includes(matchedRegion.borough.toLowerCase())
-  );
   const enteredState = document.querySelector("#address-state").value;
   const enteredCity = document.querySelector("#address-city").value.trim().toLowerCase();
-  const inPilot = Boolean(matchedRegion && enteredState === result.address.state && enteredCity === result.address.city.toLowerCase() && boroughMatches);
-  return { ...result, borough, inPilot, matchedRegion };
+  const regionMatches = activeRegions
+    .filter(region => region.state === result.address.state && region.latitude != null && region.longitude != null)
+    .map(region => ({ region, distance: distanceMiles(result.lat, result.lon, region.latitude, region.longitude) }))
+    .filter(match => match.distance <= Number(match.region.radius_miles))
+    .sort((a, b) => a.distance - b.distance);
+  const closestMatch = regionMatches[0];
+  const inPilot = Boolean(closestMatch && enteredState === result.address.state && enteredCity === result.address.city.toLowerCase());
+  return { ...result, borough, inPilot, matchedRegion: closestMatch?.region || null, regionDistance: closestMatch?.distance || null };
 }
 
 async function suggestAddresses(value) {
@@ -146,8 +156,8 @@ function showAddressResult(result) {
   const title = document.querySelector("#address-result-title");
   title.textContent = result.inPilot ? "Address available" : "Address not available";
   availability.textContent = result.inPilot
-    ? `Cross-referenced with active region: ${result.matchedRegion.name}`
-    : "This address does not match an active Admin-approved region.";
+    ? `Cross-referenced with active region: ${result.matchedRegion.name} · ${result.regionDistance.toFixed(2)} miles from center`
+    : "Verified, but outside the distance limits of every active Admin-approved region.";
   availability.className = result.inPilot ? "availability" : "unavailable";
   document.querySelector("#address-result-copy").textContent = `${result.display_name} · address located`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
@@ -453,15 +463,16 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
     const attrs = candidate.attributes || {};
     const { data: regions, error: regionError } = await supabaseClient
       .from("pilot_regions")
-      .select("name,state")
+      .select("name,state,latitude,longitude,radius_miles")
       .eq("active", true);
     if (regionError) throw new Error("Address verified, but active-region availability could not be checked.");
-    const searchableAddress = `${candidate.address} ${attrs.City || ""} ${attrs.Nbrhd || ""} ${attrs.District || ""}`.toLowerCase();
-    const matchedRegion = (regions || []).find(region =>
-      region.state === (attrs.RegionAbbr || "") && searchableAddress.includes(region.name.toLowerCase())
-    );
+    const matchedRegion = (regions || [])
+      .filter(region => region.latitude != null && region.longitude != null && region.state === (attrs.RegionAbbr || ""))
+      .map(region => ({ region, distance: distanceMiles(candidate.location.y, candidate.location.x, region.latitude, region.longitude) }))
+      .filter(match => match.distance <= Number(match.region.radius_miles))
+      .sort((a, b) => a.distance - b.distance)[0];
     status.textContent = matchedRegion
-      ? `Address verified and available in ${matchedRegion.name}.`
+      ? `Address verified and available in ${matchedRegion.region.name} · ${matchedRegion.distance.toFixed(2)} miles from center.`
       : "Address verified, but it is outside the active Admin-approved regions.";
     status.classList.toggle("error", !matchedRegion);
     status.dataset.available = matchedRegion ? "true" : "false";
@@ -623,7 +634,7 @@ async function loadPilotAddresses() {
   const list = document.querySelector("#pilot-regions");
   const suggestions = document.querySelector("#region-suggestions");
   const regionStatus = document.querySelector("#region-status");
-  let { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,state,active").order("name");
+  let { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,state,active,latitude,longitude,radius_miles").order("name");
   if (error && /state/i.test(error.message)) {
     const fallback = await supabaseClient.from("pilot_regions").select("id,name,borough,active").order("name");
     data = fallback.data?.map(item => ({ ...item, state: "NY" }));
@@ -639,7 +650,7 @@ async function loadPilotAddresses() {
   document.querySelector("#total-region-count").textContent = data.length;
 
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.latitude != null ? `${item.radius_miles} mile radius` : "Needs map coordinates"} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
   const existing = new Set([...suggestions.options].map(option => option.value.toLowerCase()));
   data.forEach(item => {
@@ -692,6 +703,9 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
     name: selectedAdminRegion.name,
     borough: document.querySelector("#pilot-borough").value.trim(),
     state: selectedAdminRegion.state,
+    latitude: selectedAdminRegion.lat,
+    longitude: selectedAdminRegion.lon,
+    radius_miles: Number(document.querySelector("#pilot-radius").value),
     description: document.querySelector("#pilot-description").value.trim() || null,
     map_url: `https://www.openstreetmap.org/?mlat=${selectedAdminRegion.lat}&mlon=${selectedAdminRegion.lon}#map=13/${selectedAdminRegion.lat}/${selectedAdminRegion.lon}`
   });

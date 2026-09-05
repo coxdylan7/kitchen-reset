@@ -48,6 +48,9 @@ create table if not exists public.pilot_regions (
 alter table public.pilot_regions add column if not exists description text;
 alter table public.pilot_regions add column if not exists map_url text;
 alter table public.pilot_regions add column if not exists state text not null default 'NY';
+alter table public.pilot_regions add column if not exists latitude double precision;
+alter table public.pilot_regions add column if not exists longitude double precision;
+alter table public.pilot_regions add column if not exists radius_miles numeric(6,2) not null default 3;
 alter table public.pilot_regions drop constraint if exists pilot_regions_borough_check;
 alter table public.pilot_regions add constraint pilot_regions_state_check check (state in ('NY', 'NJ', 'CT'));
 
