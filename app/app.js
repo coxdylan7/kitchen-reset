@@ -5,9 +5,6 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
-const customerPanel = document.querySelector("#customer-panel");
-const dashboardButton = document.querySelector("#dashboard-button");
-const dashboardLoginPanel = document.querySelector("#dashboard-login-panel");
 const directoryButton = document.querySelector("#directory-button");
 const directoryPanel = document.querySelector("#directory-panel");
 const proButton = document.querySelector("#pro-button");
@@ -31,7 +28,7 @@ let mapSearchAddress = "";
 let addressSearchTimer = null;
 
 function openPage(panel) {
-  [accountPanel, customerPanel, adminPanel, dashboardLoginPanel, directoryPanel, proPanel, mapPanel]
+  [accountPanel, adminPanel, directoryPanel, proPanel, mapPanel]
     .filter(Boolean)
     .forEach(item => item.classList.add("hidden"));
   document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
@@ -108,19 +105,38 @@ function showAddressResult(result) {
   document.querySelector("#map-title").textContent = result.display_name;
   document.querySelector("#map-copy").textContent = "Verified by OpenStreetMap.";
   document.querySelector("#map-page-link").href = mapSearchAddress;
-  document.querySelector("#map-page-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=${Number(result.lon) - 0.01}%2C${Number(result.lat) - 0.01}%2C${Number(result.lon) + 0.01}%2C${Number(result.lat) + 0.01}&layer=mapnik&marker=${encodeURIComponent(result.lat)}%2C${encodeURIComponent(result.lon)}`;
+  setMapPreviews(result.lat, result.lon);
+}
+
+function setMapPreviews(lat, lon) {
+  const bbox = `${Number(lon) - 0.01},${Number(lat) - 0.01},${Number(lon) + 0.01},${Number(lat) + 0.01}`;
+  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}`;
+  ["#map-page-preview", "#map-inline-preview"].forEach(selector => {
+    const frame = document.querySelector(selector);
+    if (!frame) return;
+    frame.onload = () => {
+      const status = selector === "#map-inline-preview" ? document.querySelector("#map-inline-status") : null;
+      if (status) status.textContent = "Map preview loaded from OpenStreetMap.";
+    };
+    frame.onerror = () => {
+      const status = selector === "#map-inline-preview" ? document.querySelector("#map-inline-status") : null;
+      if (status) status.textContent = "The embedded map could not load. Use Open in OpenStreetMap above.";
+    };
+    frame.src = embedUrl;
+  });
 }
 
 function showMapSearch(address) {
   const addressResult = document.querySelector("#address-result");
+  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent || "New York, New Jersey, Connecticut";
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
-  document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
-  mapSearchAddress = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
+  document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${address}, ${region}`)}`;
+  mapSearchAddress = `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${address}, ${region}`)}`;
   document.querySelector("#map-title").textContent = address;
-  document.querySelector("#map-copy").textContent = "OpenStreetMap search preview.";
+  document.querySelector("#map-copy").textContent = `OpenStreetMap search preview for ${region}.`;
   document.querySelector("#map-page-link").href = mapSearchAddress;
-  document.querySelector("#map-page-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=-74.3%2C40.49%2C-73.7%2C40.92&layer=mapnik`;
+  setMapPreviews(40.705, -73.99);
 }
 
 function showStep(step) {
@@ -291,10 +307,8 @@ function updateAccountButton() {
   const email = currentUser?.email || localStorage.getItem("kitchenResetEmail");
   accountButton.textContent = currentUser ? "Account" : "Sign in";
   accountButton.classList.toggle("signed-in", Boolean(email));
-  document.querySelector("#sign-out").classList.toggle("hidden", !email);
   document.querySelector("#create-account-button").classList.toggle("hidden", Boolean(currentUser));
   document.querySelector("#magic-link-button").classList.toggle("hidden", Boolean(currentUser));
-  dashboardButton.textContent = currentUser ? "My bookings" : "Dashboard";
   if (currentUser) {
     document.querySelector("#account-dashboard-content").classList.remove("hidden");
     document.querySelector("#account-email-display").textContent = currentUser.email;
@@ -321,28 +335,13 @@ accountButton.addEventListener("click", () => {
   setAuthView("email");
   document.querySelector("#account-email").focus();
 });
-dashboardButton.addEventListener("click", () => {
-  if (currentUser) {
-    openPage(customerPanel);
-    loadCustomerBookings();
-    return;
-  }
-  openPage(dashboardLoginPanel);
-});
 directoryButton.addEventListener("click", () => {
   openPage(directoryPanel);
   loadDirectory();
 });
 document.querySelector("#close-directory").addEventListener("click", () => closePage(directoryPanel));
 document.querySelector("#close-map").addEventListener("click", () => closePage(mapPanel));
-document.querySelector("#close-dashboard-login").addEventListener("click", () => closePage(dashboardLoginPanel));
-document.querySelector("#dashboard-login-button").addEventListener("click", () => {
-  openPage(accountPanel);
-  setAuthView("email");
-  document.querySelector("#account-email").focus();
-});
 document.querySelector("#close-account").addEventListener("click", () => closePage(accountPanel));
-document.querySelector("#close-customer").addEventListener("click", () => closePage(customerPanel));
 async function signOut() {
   if (supabaseClient) {
     const { error } = await supabaseClient.auth.signOut();
@@ -354,12 +353,13 @@ async function signOut() {
   currentUser = null;
   localStorage.removeItem("kitchenResetEmail");
   document.querySelector("#account-status").textContent = "You have been signed out.";
-  closePage(customerPanel);
+  accountPanel.classList.add("hidden");
+  document.querySelector(".progress").classList.remove("hidden");
+  document.querySelector(".action-bar").classList.remove("hidden");
+  showStep(state.step);
   setAuthView("email");
   updateAccountButton();
 }
-document.querySelector("#sign-out").addEventListener("click", signOut);
-document.querySelector("#customer-sign-out").addEventListener("click", signOut);
 document.querySelector("#account-dashboard-sign-out").addEventListener("click", signOut);
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
@@ -442,7 +442,7 @@ if (supabaseClient) {
       accountPanel.classList.add("hidden");
       if (_event === "SIGNED_IN" && !currentUser.user_metadata?.password_set) showPasswordSetup();
     } else {
-      customerPanel.classList.add("hidden");
+      accountPanel.classList.add("hidden");
       setAuthView("email");
     }
     updateAdminAccess();
@@ -580,21 +580,6 @@ async function loadProfessionalRegions() {
   }
 }
 loadProfessionalRegions();
-
-async function loadCustomerBookings() {
-  const status = document.querySelector("#customer-status");
-  const list = document.querySelector("#customer-bookings");
-  status.textContent = "Loading your bookings…";
-  const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,bonus_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(20);
-  if (error) {
-    status.textContent = error.message;
-    return;
-  }
-  status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
-  list.innerHTML = data.length
-    ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("")
-    : "<p class=\"field-hint\">You have no bookings yet.</p>";
-}
 
 async function loadAccountBookings() {
   const status = document.querySelector("#account-customer-status");
