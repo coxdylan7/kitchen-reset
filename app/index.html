@@ -45,8 +45,10 @@
           <div class="settings-block">
             <div class="section-heading"><span>Account settings</span><small id="account-email-display"></small></div>
             <label class="field-label" for="account-address">Saved service address</label>
-            <input id="account-address" class="text-field" autocomplete="street-address" placeholder="Street address, city, state" />
-            <button id="save-account-address" class="primary-button" type="button">Save address</button>
+            <input id="account-address" class="text-field" list="account-address-suggestions" autocomplete="street-address" placeholder="Start typing a full address" />
+            <datalist id="account-address-suggestions"></datalist>
+            <button id="verify-account-address" class="secondary-button" type="button">Look up address</button>
+            <button id="save-account-address" class="primary-button" type="button">Save verified address</button>
             <p id="account-address-status" class="field-hint"></p>
             <button id="account-dashboard-sign-out" class="secondary-button" type="button">Sign out</button>
           </div>

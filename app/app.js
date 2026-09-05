@@ -24,6 +24,7 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
 let currentUser = null;
 let mapSearchAddress = "";
 let addressSearchTimer = null;
+let verifiedAccountAddress = "";
 
 function openPage(panel) {
   [accountPanel, adminPanel, proPanel, mapPanel]
@@ -410,11 +411,46 @@ async function signOut() {
   updateAccountButton();
 }
 document.querySelector("#account-dashboard-sign-out").addEventListener("click", signOut);
+document.querySelector("#account-address").addEventListener("input", event => {
+  verifiedAccountAddress = "";
+  clearTimeout(addressSearchTimer);
+  addressSearchTimer = setTimeout(async () => {
+    if (event.target.value.trim().length < 3) return;
+    const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${event.target.value.trim()}, USA`)}`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    document.querySelector("#account-address-suggestions").innerHTML = (payload.suggestions || []).map(item => `<option value="${item.text}"></option>`).join("");
+  }, 350);
+});
+document.querySelector("#verify-account-address").addEventListener("click", async () => {
+  const input = document.querySelector("#account-address");
+  const status = document.querySelector("#account-address-status");
+  const address = input.value.trim();
+  if (!address) {
+    status.textContent = "Enter an address first.";
+    status.classList.add("error");
+    return;
+  }
+  status.textContent = "Looking up address…";
+  try {
+    const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, USA`)}`);
+    const payload = await response.json();
+    const candidate = payload.candidates?.[0];
+    if (!response.ok || !candidate) throw new Error("Address not found. Check the street, city, state, and ZIP.");
+    verifiedAccountAddress = candidate.address;
+    input.value = candidate.address;
+    status.textContent = `Address found: ${candidate.address}`;
+    status.classList.remove("error");
+  } catch (error) {
+    status.textContent = error.message;
+    status.classList.add("error");
+  }
+});
 document.querySelector("#save-account-address").addEventListener("click", () => {
   const address = document.querySelector("#account-address").value.trim();
   const status = document.querySelector("#account-address-status");
-  if (!address) {
-    status.textContent = "Enter an address first.";
+  if (!address || address !== verifiedAccountAddress) {
+    status.textContent = "Look up and verify this address before saving it.";
     status.classList.add("error");
     return;
   }
@@ -501,8 +537,8 @@ if (supabaseClient) {
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
-      accountPanel.classList.add("hidden");
       if (_event === "SIGNED_IN" && !currentUser.user_metadata?.password_set) showPasswordSetup();
+      else openPage(accountPanel);
     } else {
       accountPanel.classList.add("hidden");
       setAuthView("email");
@@ -643,6 +679,9 @@ async function loadProfessionalRegions() {
   const { data } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
     : { data: null };
+  const regions = data || [];
+  select.innerHTML = '<option value="">Choose an active region</option>' +
+    regions.map(region => `<option value="${region.name}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
   const savedAddress = localStorage.getItem("kitchenResetAddress");
   if (savedAddress) document.querySelector("#address-street").value = savedAddress;
 }
