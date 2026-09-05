@@ -60,7 +60,7 @@
         <p id="admin-status" class="field-hint">Loading bookings…</p>
         <div id="admin-bookings" class="admin-bookings"></div>
         <div class="admin-settings">
-          <div class="section-heading"><span>Service regions</span><small>Public directory controls</small></div>
+          <div class="section-heading"><span>Service regions</span><small id="region-status">Loading regions…</small></div>
           <form id="region-form" class="admin-form">
             <input id="pilot-region" class="text-field" list="region-suggestions" placeholder="Start typing a region…" autocomplete="off" required />
             <datalist id="region-suggestions">
@@ -102,9 +102,15 @@
         <p class="eyebrow">A usable kitchen, on your schedule</p>
         <h1>Let’s reset your sink.</h1>
         <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
-        <label class="field-label" for="address">Apartment address</label>
+        <label class="field-label" for="address-street">Service address</label>
         <select id="service-region" class="text-field" aria-label="Service region" required><option value="">Choose a service region first</option></select>
-        <input id="address" class="text-field" list="address-suggestions" autocomplete="street-address" placeholder="Start typing your full address" />
+        <div class="address-fields">
+          <input id="address-street" class="text-field" list="address-suggestions" autocomplete="address-line1" placeholder="Street address" required />
+          <input id="address-unit" class="text-field" autocomplete="address-line2" placeholder="Apt / unit (optional)" />
+          <input id="address-city" class="text-field" autocomplete="address-level2" placeholder="City" required />
+          <select id="address-state" class="text-field" autocomplete="address-level1" required><option value="">State</option><option value="NY">NY</option><option value="NJ">NJ</option><option value="CT">CT</option></select>
+          <input id="address-zip" class="text-field" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP code" required />
+        </div>
         <datalist id="address-suggestions"></datalist>
         <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
         <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><a id="google-map-link" href="#" target="_blank" rel="noopener">Open in Google Maps</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>

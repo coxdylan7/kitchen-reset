@@ -79,7 +79,8 @@ async function locateAddress(address) {
     lon: candidate.location.x,
     address: {
       city: candidate.attributes?.City || "",
-      state: candidate.attributes?.RegionAbbr || candidate.attributes?.Region || ""
+      state: candidate.attributes?.RegionAbbr || candidate.attributes?.Region || "",
+      zip: candidate.attributes?.Postal || ""
     }
   } : null;
   if (!result) return null;
@@ -96,7 +97,9 @@ async function locateAddress(address) {
     regionText.includes(matchedRegion.name.toLowerCase()) ||
     regionText.includes(matchedRegion.borough.toLowerCase())
   );
-  const inPilot = Boolean(matchedRegion && selectedOption?.dataset.state === result.address.state && boroughMatches);
+  const enteredState = document.querySelector("#address-state").value;
+  const enteredCity = document.querySelector("#address-city").value.trim().toLowerCase();
+  const inPilot = Boolean(matchedRegion && enteredState === result.address.state && enteredCity === result.address.city.toLowerCase() && boroughMatches);
   return { ...result, borough, inPilot, matchedRegion };
 }
 
@@ -111,7 +114,7 @@ async function suggestAddresses(value) {
   datalist.innerHTML = (results.suggestions || []).map(result => `<option value="${result.text}"></option>`).join("");
 }
 
-document.querySelector("#address").addEventListener("input", event => {
+document.querySelector("#address-street").addEventListener("input", event => {
   clearTimeout(addressSearchTimer);
   addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
 });
@@ -120,7 +123,7 @@ function showAddressResult(result) {
   const addressResult = document.querySelector("#address-result");
   const mapLink = document.querySelector("#map-link");
   addressResult.classList.remove("hidden");
-  document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
+  document.querySelector("#address-result-copy").textContent = `${result.display_name} · address located`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
   document.querySelector("#google-map-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${result.lat},${result.lon}`)}`;
   mapSearchAddress = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
@@ -160,7 +163,9 @@ function showMapSearch(address) {
   document.querySelector("#map-copy").textContent = `OpenStreetMap search preview for ${region}.`;
   document.querySelector("#map-page-link").href = mapSearchAddress;
   document.querySelector("#google-map-page-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, ${region}`)}`;
-  setMapPreviews(40.705, -73.99);
+  document.querySelector("#map-inline-preview").removeAttribute("src");
+  document.querySelector("#map-page-preview").removeAttribute("src");
+  document.querySelector("#map-inline-status").textContent = "Exact map preview will appear after the address is located.";
 }
 
 function showStep(step) {
@@ -260,9 +265,14 @@ async function saveBooking() {
 
 next.addEventListener("click", async () => {
   if (state.step === 1) {
-    state.address = document.querySelector("#address").value.trim();
+    const street = document.querySelector("#address-street").value.trim();
+    const unit = document.querySelector("#address-unit").value.trim();
+    const city = document.querySelector("#address-city").value.trim();
+    const addressState = document.querySelector("#address-state").value;
+    const zip = document.querySelector("#address-zip").value.trim();
+    state.address = [street, unit, city, addressState, zip].filter(Boolean).join(", ");
     const hint = document.querySelector("#address-hint");
-    if (!state.address) { hint.textContent = "Please enter an address to check service availability."; hint.classList.add("error"); return; }
+    if (!street || !city || !addressState || !zip) { hint.textContent = "Enter the street, city, state, and ZIP code."; hint.classList.add("error"); return; }
     if (!document.querySelector("#service-region").value) {
       hint.textContent = "Choose a service region before checking the address.";
       hint.classList.add("error");
@@ -392,7 +402,7 @@ document.querySelector("#save-account-address").addEventListener("click", () => 
   }
   localStorage.setItem("kitchenResetAddress", address);
   localStorage.setItem("kitchenResetRegion", region);
-  document.querySelector("#address").value = address;
+  document.querySelector("#address-street").value = address;
   document.querySelector("#service-region").value = region;
   status.textContent = "Address saved. It will be used for your next booking.";
   status.classList.remove("error");
@@ -524,13 +534,11 @@ async function loadAdminBookings() {
   const list = document.querySelector("#admin-bookings");
   status.textContent = "Loading bookings…";
   const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(50);
-  if (error) {
-    status.textContent = error.message;
-    return;
-  }
-  status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
-  list.innerHTML = data.length
-    ? data.map(booking => `<div class="admin-booking"><strong>${booking.service_tier} · $${(booking.price_cents / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline} · ${booking.status}</small></div>`).join("")
+  const bookings = data || [];
+  if (error) status.textContent = `Bookings unavailable: ${error.message}`;
+  if (!error) status.textContent = `${bookings.length} booking${bookings.length === 1 ? "" : "s"}`;
+  list.innerHTML = bookings.length
+    ? bookings.map(booking => `<div class="admin-booking"><strong>${booking.service_tier} · $${(booking.price_cents / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline} · ${booking.status}</small></div>`).join("")
     : "<p class=\"field-hint\">No bookings yet.</p>";
   loadPilotAddresses();
 }
@@ -538,11 +546,19 @@ async function loadAdminBookings() {
 async function loadPilotAddresses() {
   const list = document.querySelector("#pilot-regions");
   const suggestions = document.querySelector("#region-suggestions");
-  const { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,state,active").order("name");
+  const regionStatus = document.querySelector("#region-status");
+  let { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,state,active").order("name");
+  if (error && /state/i.test(error.message)) {
+    const fallback = await supabaseClient.from("pilot_regions").select("id,name,borough,active").order("name");
+    data = fallback.data?.map(item => ({ ...item, state: "NY" }));
+    error = fallback.error;
+  }
   if (error) {
+    regionStatus.textContent = "Unable to load";
     list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
     return;
   }
+  regionStatus.textContent = `${data.length} configured · ${data.filter(item => item.active).length} active`;
 
   list.innerHTML = data.length
     ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
@@ -622,7 +638,7 @@ async function loadProfessionalRegions() {
     accountRegion.value = savedRegion;
   }
   const savedAddress = localStorage.getItem("kitchenResetAddress");
-  if (savedAddress) document.querySelector("#address").value = savedAddress;
+  if (savedAddress) document.querySelector("#address-street").value = savedAddress;
 }
 loadProfessionalRegions();
 
