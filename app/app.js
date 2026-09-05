@@ -6,6 +6,8 @@ const screens = ["address", "photos", "quote", "schedule", "confirm", "success"]
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
 const customerPanel = document.querySelector("#customer-panel");
+const dashboardButton = document.querySelector("#dashboard-button");
+const dashboardLoginPanel = document.querySelector("#dashboard-login-panel");
 const adminButton = document.querySelector("#admin-button");
 const adminPanel = document.querySelector("#admin-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
@@ -214,10 +216,11 @@ document.querySelector("#restart").addEventListener("click", () => {
 
 function updateAccountButton() {
   const email = currentUser?.email || localStorage.getItem("kitchenResetEmail");
-  accountButton.textContent = currentUser ? "Account" : (email ? email.split("@")[0] : "Sign in");
+  accountButton.textContent = currentUser ? "Account" : "Sign in";
   accountButton.classList.toggle("signed-in", Boolean(email));
   document.querySelector("#sign-out").classList.toggle("hidden", !email);
   document.querySelector("#password-login-toggle").classList.toggle("hidden", Boolean(currentUser));
+  dashboardButton.textContent = currentUser ? "My bookings" : "Dashboard";
 }
 
 accountButton.addEventListener("click", () => {
@@ -226,6 +229,21 @@ accountButton.addEventListener("click", () => {
     if (!customerPanel.classList.contains("hidden")) loadCustomerBookings();
     return;
   }
+  accountPanel.classList.remove("hidden");
+  setAuthView("email");
+  document.querySelector("#account-email").focus();
+});
+dashboardButton.addEventListener("click", () => {
+  if (currentUser) {
+    customerPanel.classList.remove("hidden");
+    loadCustomerBookings();
+    return;
+  }
+  dashboardLoginPanel.classList.remove("hidden");
+});
+document.querySelector("#close-dashboard-login").addEventListener("click", () => dashboardLoginPanel.classList.add("hidden"));
+document.querySelector("#dashboard-login-button").addEventListener("click", () => {
+  dashboardLoginPanel.classList.add("hidden");
   accountPanel.classList.remove("hidden");
   setAuthView("email");
   document.querySelector("#account-email").focus();
