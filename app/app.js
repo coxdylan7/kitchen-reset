@@ -349,25 +349,25 @@ async function loadAdminBookings() {
     status.textContent = error.message;
     return;
   }
-
-  async function loadCustomerBookings() {
-    const status = document.querySelector("#customer-status");
-    const list = document.querySelector("#customer-bookings");
-    status.textContent = "Loading your bookings…";
-    const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,bonus_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(20);
-    if (error) {
-      status.textContent = error.message;
-      return;
-    }
-    status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
-    list.innerHTML = data.length
-      ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("")
-      : "<p class=\"field-hint\">You have no bookings yet.</p>";
-  }
   status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
   list.innerHTML = data.length
     ? data.map(booking => `<div class="admin-booking"><strong>${booking.service_tier} · $${(booking.price_cents / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline} · ${booking.status}</small></div>`).join("")
     : "<p class=\"field-hint\">No bookings yet.</p>";
+}
+
+async function loadCustomerBookings() {
+  const status = document.querySelector("#customer-status");
+  const list = document.querySelector("#customer-bookings");
+  status.textContent = "Loading your bookings…";
+  const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,bonus_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(20);
+  if (error) {
+    status.textContent = error.message;
+    return;
+  }
+  status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
+  list.innerHTML = data.length
+    ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("")
+    : "<p class=\"field-hint\">You have no bookings yet.</p>";
 }
 
 adminButton.addEventListener("click", () => {
