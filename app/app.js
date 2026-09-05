@@ -12,6 +12,7 @@ const directoryButton = document.querySelector("#directory-button");
 const directoryPanel = document.querySelector("#directory-panel");
 const proButton = document.querySelector("#pro-button");
 const proPanel = document.querySelector("#pro-panel");
+const mapPanel = document.querySelector("#map-panel");
 const adminButton = document.querySelector("#admin-button");
 const adminPanel = document.querySelector("#admin-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
@@ -29,7 +30,7 @@ let currentUser = null;
 let mapSearchAddress = "";
 
 function openPage(panel) {
-  [accountPanel, customerPanel, adminPanel, dashboardLoginPanel, directoryPanel, proPanel]
+  [accountPanel, customerPanel, adminPanel, dashboardLoginPanel, directoryPanel, proPanel, mapPanel]
     .filter(Boolean)
     .forEach(item => item.classList.add("hidden"));
   document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
@@ -71,7 +72,8 @@ async function locateAddress(address) {
     ? await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true)
     : { data: [] };
   const searchText = `${result.display_name} ${Object.values(result.address || {}).join(" ")}`.toLowerCase();
-  const matchedRegion = pilotRegions?.find(region => searchText.includes(region.name.toLowerCase()));
+  const selectedRegion = document.querySelector("#service-region").value;
+  const matchedRegion = pilotRegions?.find(region => region.name === selectedRegion && searchText.includes(region.name.toLowerCase()));
   const inPilot = pilotRegions?.length
     ? Boolean(matchedRegion)
     : /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
@@ -84,7 +86,11 @@ function showAddressResult(result) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
-  document.querySelector("#map-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=${Number(result.lon) - 0.01}%2C${Number(result.lat) - 0.01}%2C${Number(result.lon) + 0.01}%2C${Number(result.lat) + 0.01}&layer=mapnik&marker=${encodeURIComponent(result.lat)}%2C${encodeURIComponent(result.lon)}`;
+  mapSearchAddress = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
+  document.querySelector("#map-title").textContent = result.display_name;
+  document.querySelector("#map-copy").textContent = "Verified by OpenStreetMap.";
+  document.querySelector("#map-page-link").href = mapSearchAddress;
+  document.querySelector("#map-page-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=${Number(result.lon) - 0.01}%2C${Number(result.lat) - 0.01}%2C${Number(result.lon) + 0.01}%2C${Number(result.lat) + 0.01}&layer=mapnik&marker=${encodeURIComponent(result.lat)}%2C${encodeURIComponent(result.lon)}`;
 }
 
 function showMapSearch(address) {
@@ -92,7 +98,11 @@ function showMapSearch(address) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
   document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
-  mapSearchAddress = address + ", New York";
+  mapSearchAddress = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
+  document.querySelector("#map-title").textContent = address;
+  document.querySelector("#map-copy").textContent = "OpenStreetMap search preview.";
+  document.querySelector("#map-page-link").href = mapSearchAddress;
+  document.querySelector("#map-page-preview").src = `https://www.openstreetmap.org/export/embed.html?bbox=-74.3%2C40.49%2C-73.7%2C40.92&layer=mapnik`;
 }
 
 function showStep(step) {
@@ -195,6 +205,11 @@ next.addEventListener("click", async () => {
     state.address = document.querySelector("#address").value.trim();
     const hint = document.querySelector("#address-hint");
     if (!state.address) { hint.textContent = "Please enter an address to check service availability."; hint.classList.add("error"); return; }
+    if (!document.querySelector("#service-region").value) {
+      hint.textContent = "Choose a service region before checking the address.";
+      hint.classList.add("error");
+      return;
+    }
     next.disabled = true;
     hint.classList.remove("error");
     hint.textContent = "Checking the address…";
@@ -292,6 +307,7 @@ directoryButton.addEventListener("click", () => {
   loadDirectory();
 });
 document.querySelector("#close-directory").addEventListener("click", () => closePage(directoryPanel));
+document.querySelector("#close-map").addEventListener("click", () => closePage(mapPanel));
 document.querySelector("#close-dashboard-login").addEventListener("click", () => closePage(dashboardLoginPanel));
 document.querySelector("#dashboard-login-button").addEventListener("click", () => {
   openPage(accountPanel);
@@ -464,11 +480,16 @@ async function loadPilotAddresses() {
   }
 
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button></small></div>`).join("")
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete</button></small></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
   list.querySelectorAll(".address-toggle").forEach(button => button.addEventListener("click", async () => {
     const { error: updateError } = await supabaseClient.from("pilot_regions").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
     if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
+    else loadPilotAddresses();
+  }));
+  list.querySelectorAll(".address-delete").forEach(button => button.addEventListener("click", async () => {
+    const { error: deleteError } = await supabaseClient.from("pilot_regions").delete().eq("id", button.dataset.id);
+    if (deleteError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${deleteError.message}</p>`);
     else loadPilotAddresses();
   }));
 }
@@ -490,14 +511,16 @@ async function loadDirectory() {
 }
 
 document.querySelector("#map-view-button").addEventListener("click", () => {
-  if (mapSearchAddress) window.open(`https://www.openstreetmap.org/search?query=${encodeURIComponent(mapSearchAddress)}`, "_blank", "noopener");
+  if (mapSearchAddress) openPage(mapPanel);
 });
 
 document.querySelector("#region-form").addEventListener("submit", async event => {
   event.preventDefault();
   const { error } = await supabaseClient.from("pilot_regions").insert({
     name: document.querySelector("#pilot-region").value.trim(),
-    borough: document.querySelector("#pilot-borough").value
+    borough: document.querySelector("#pilot-borough").value,
+    description: document.querySelector("#pilot-description").value.trim() || null,
+    map_url: document.querySelector("#pilot-map-url").value.trim() || null
   });
   if (error) {
     document.querySelector("#admin-status").textContent = error.message;
@@ -509,10 +532,12 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
 
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
+  const addressRegion = document.querySelector("#service-region");
   const { data } = await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true).order("name");
   if (data?.length) {
-    select.innerHTML = '<option value="">Choose a region</option>' +
-      data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}</option>`).join("");
+    const options = data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}</option>`).join("");
+    select.innerHTML = '<option value="">Choose a region</option>' + options;
+    addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
   }
 }
 loadProfessionalRegions();
@@ -533,10 +558,10 @@ async function loadCustomerBookings() {
 }
 
 adminButton.addEventListener("click", () => {
-  adminPanel.classList.toggle("hidden");
-  if (!adminPanel.classList.contains("hidden")) loadAdminBookings();
+  openPage(adminPanel);
+  loadAdminBookings();
 });
-document.querySelector("#close-admin").addEventListener("click", () => adminPanel.classList.add("hidden"));
+document.querySelector("#close-admin").addEventListener("click", () => closePage(adminPanel));
 
 updateAccountButton();
 showStep(1);
