@@ -714,6 +714,53 @@ async function loadWorkerJobs() {
     : "<p class=\"field-hint\">No open jobs are available right now.</p>";
 }
 
+document.querySelector("#worker-assignments").addEventListener("click", async event => {
+  const button = event.target.closest(".worker-job-button");
+  if (!button) return;
+  const review = document.querySelector("#worker-job-review");
+  const copy = document.querySelector("#worker-job-review-copy");
+  const status = document.querySelector("#worker-job-review-status");
+  const job = await getWorkerJob(button.dataset.jobId);
+  if (!job) {
+    status.textContent = "This job is no longer available.";
+    review.classList.remove("hidden");
+    return;
+  }
+  review.dataset.jobId = job.id;
+  copy.innerHTML = `<strong>${job.service_tier}</strong><br>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes<br>Customer payout: $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}`;
+  status.textContent = "Review the address, deadline, duration, and payout before accepting.";
+  review.classList.remove("hidden");
+});
+document.querySelector("#close-worker-job-review").addEventListener("click", () => {
+  document.querySelector("#worker-job-review").classList.add("hidden");
+});
+document.querySelector("#worker-job-accept").addEventListener("click", async () => {
+  const review = document.querySelector("#worker-job-review");
+  const status = document.querySelector("#worker-job-review-status");
+  if (!currentUser || !review.dataset.jobId) return;
+  const { error } = await supabaseClient.from("bookings")
+    .update({ worker_id: currentUser.id, status: "assigned" })
+    .eq("id", review.dataset.jobId)
+    .eq("status", "matching")
+    .is("worker_id", null);
+  if (error) {
+    status.textContent = `This job could not be accepted: ${error.message}`;
+    status.classList.add("error");
+    return;
+  }
+  status.textContent = "Job accepted.";
+  status.classList.remove("error");
+  loadWorkerJobs();
+});
+
+async function getWorkerJob(id) {
+  if (!supabaseClient || !currentUser) return null;
+  const { data, error } = await supabaseClient.from("bookings")
+    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline")
+    .eq("id", id).eq("status", "matching").is("worker_id", null).maybeSingle();
+  return error ? null : data;
+}
+
 async function saveWorkerProfile(name, region) {
   if (!supabaseClient || !currentUser) throw new Error("Sign in before saving a worker profile.");
   const { error } = await supabaseClient.from("worker_profiles").upsert({

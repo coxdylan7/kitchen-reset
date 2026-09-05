@@ -68,6 +68,12 @@
         <div class="worker-card">
           <div class="section-heading"><span>Today’s assignments</span><small>Worker view</small></div>
           <div id="worker-assignments"><p class="field-hint">No assignments are available yet.</p></div>
+          <div id="worker-job-review" class="worker-job-review hidden">
+            <div class="section-heading"><span>Job details</span><button id="close-worker-job-review" class="text-button" type="button">Close</button></div>
+            <p id="worker-job-review-copy" class="field-hint"></p>
+            <button id="worker-job-accept" class="primary-button" type="button">Accept job</button>
+            <p id="worker-job-review-status" class="field-hint"></p>
+          </div>
         </div>
         <div class="worker-card">
           <div class="section-heading"><span>Worker profile</span><small>Set up once</small></div>
@@ -182,9 +188,9 @@
           </ul>
         </article>
         <div class="quote-reasons">
-          <div class="section-heading"><span>Why this quote</span><small>Photo-assisted estimate</small></div>
+          <div class="section-heading"><span>Why this quote</span><small>Prototype estimate</small></div>
           <div id="quote-signals" class="signal-list"></div>
-          <p class="quote-range">Typical range for this workload: <b>$69–$99</b>. Your all-in estimate is fixed before booking.</p>
+          <p class="quote-range">This prototype uses a standard estimate. Photos are uploaded for the booking but are not currently evaluated by an AI or image-assessment service.</p>
         </div>
         <label class="field-label" for="notes">Anything we should know?</label>
         <textarea id="notes" class="text-field" rows="3" placeholder="For example: pots are on the stove, use the green dish soap."></textarea>

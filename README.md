@@ -28,6 +28,7 @@ After the first push, GitHub Pages will deploy from the workflow. The deployment
 2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
    If the project was already initialized before geographic availability was added, also run [`supabase/migrations/20260905_add_region_coordinates.sql`](supabase/migrations/20260905_add_region_coordinates.sql). This adds the latitude, longitude, and radius columns without deleting existing regions.
    To enable the Worker portal and open-job list on an existing project, also run [`supabase/migrations/20260905_add_worker_jobs.sql`](supabase/migrations/20260905_add_worker_jobs.sql).
+   The Worker portal currently shows open `matching` bookings and supports accepting them after this migration is applied. The booking quote remains a prototype estimate; uploaded photos are stored but are not yet evaluated by an AI service.
 3. Copy `app/config.example.js` to `app/config.js`.
 4. Replace the URL and publishable/anon key in `app/config.js` using **Project Settings → Data API** and **API Keys**.
 5. In Supabase **Authentication → URL Configuration**, add the GitHub Pages URL (for example `https://coxdylan7.github.io/kitchen-reset/`) to the allowed redirect URLs.

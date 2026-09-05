@@ -21,3 +21,12 @@ create policy "Workers can view open bookings"
     status = 'matching'
     and exists (select 1 from public.worker_profiles where user_id = auth.uid() and available = true)
   );
+
+drop policy if exists "Workers can accept open bookings" on public.bookings;
+create policy "Workers can accept open bookings"
+  on public.bookings for update using (
+    status = 'matching' and worker_id is null
+    and exists (select 1 from public.worker_profiles where user_id = auth.uid())
+  ) with check (
+    worker_id = auth.uid() and status = 'assigned'
+  );
