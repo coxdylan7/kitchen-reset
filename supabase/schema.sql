@@ -23,18 +23,35 @@ create table if not exists public.booking_photos (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.admin_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
 alter table public.bookings enable row level security;
 alter table public.booking_photos enable row level security;
+alter table public.admin_users enable row level security;
 
 create policy "Users can view their bookings"
   on public.bookings for select using (auth.uid() = user_id);
 create policy "Users can create their bookings"
   on public.bookings for insert with check (auth.uid() = user_id);
+create policy "Admins can view all bookings"
+  on public.bookings for select using (
+    exists (select 1 from public.admin_users where user_id = auth.uid())
+  );
 
 create policy "Users can view their booking photos"
   on public.booking_photos for select using (auth.uid() = user_id);
 create policy "Users can create their booking photos"
   on public.booking_photos for insert with check (auth.uid() = user_id);
+create policy "Admins can view all booking photos"
+  on public.booking_photos for select using (
+    exists (select 1 from public.admin_users where user_id = auth.uid())
+  );
+
+create policy "Users can check their admin access"
+  on public.admin_users for select using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public)
 values ('booking-photos', 'booking-photos', false)

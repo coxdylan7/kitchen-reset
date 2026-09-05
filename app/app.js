@@ -5,6 +5,8 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
+const adminButton = document.querySelector("#admin-button");
+const adminPanel = document.querySelector("#admin-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
 let supabaseClient = null;
 let supabaseInitError = null;
@@ -17,6 +19,26 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
   }
 }
 let currentUser = null;
+
+async function locateAddress(address) {
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(address + ", New York")}`;
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("The address service is unavailable. Please try again.");
+  const results = await response.json();
+  const result = results[0];
+  if (!result) return null;
+  const borough = result.address?.borough || result.address?.city_district || "";
+  const inPilot = /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
+  return { ...result, borough, inPilot };
+}
+
+function showAddressResult(result) {
+  const addressResult = document.querySelector("#address-result");
+  const mapLink = document.querySelector("#map-link");
+  addressResult.classList.remove("hidden");
+  document.querySelector("#address-result-copy").textContent = `${result.borough || "NYC"} · verified by OpenStreetMap`;
+  mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
+}
 
 function showStep(step) {
   state.step = step;
@@ -118,15 +140,29 @@ next.addEventListener("click", async () => {
     state.address = document.querySelector("#address").value.trim();
     const hint = document.querySelector("#address-hint");
     if (!state.address) { hint.textContent = "Please enter an address to check service availability."; hint.classList.add("error"); return; }
-    if (!/brooklyn|manhattan/i.test(state.address)) {
-      hint.textContent = "We’re not in that area yet. Try a Brooklyn or Manhattan address for this pilot.";
+    next.disabled = true;
+    hint.classList.remove("error");
+    hint.textContent = "Checking the address…";
+    try {
+      const result = await locateAddress(state.address);
+      if (!result) throw new Error("We couldn’t locate that address. Check the street, number, and borough.");
+      if (!result.inPilot) {
+        hint.textContent = "That address is outside the current NYC pilot area. Try a Brooklyn or Manhattan address.";
+        hint.classList.add("error");
+        document.querySelector("#address-result").classList.add("hidden");
+        next.disabled = false;
+        return;
+      }
+      hint.textContent = "Good news—this address is in the pilot service area.";
+      showAddressResult(result);
+    } catch (error) {
+      hint.textContent = error.message;
       hint.classList.add("error");
       document.querySelector("#address-result").classList.add("hidden");
+      next.disabled = false;
       return;
     }
-    hint.classList.remove("error");
-    hint.textContent = "Good news—this address is in the pilot service area.";
-    document.querySelector("#address-result").classList.remove("hidden");
+    next.disabled = false;
   }
   if (state.step === 2) updateQuote();
   if (state.step === 4) updateSummary();
@@ -163,9 +199,10 @@ document.querySelector("#restart").addEventListener("click", () => {
 });
 
 function updateAccountButton() {
-  const email = localStorage.getItem("kitchenResetEmail");
+  const email = currentUser?.email || localStorage.getItem("kitchenResetEmail");
   accountButton.textContent = email ? email.split("@")[0] : "Sign in";
   accountButton.classList.toggle("signed-in", Boolean(email));
+  document.querySelector("#sign-out").classList.toggle("hidden", !currentUser);
 }
 
 accountButton.addEventListener("click", () => {
@@ -173,6 +210,19 @@ accountButton.addEventListener("click", () => {
   if (!accountPanel.classList.contains("hidden")) document.querySelector("#account-email").focus();
 });
 document.querySelector("#close-account").addEventListener("click", () => accountPanel.classList.add("hidden"));
+document.querySelector("#sign-out").addEventListener("click", async () => {
+  if (supabaseClient) {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      document.querySelector("#account-status").textContent = error.message;
+      return;
+    }
+  }
+  currentUser = null;
+  localStorage.removeItem("kitchenResetEmail");
+  document.querySelector("#account-status").textContent = "You have been signed out.";
+  updateAccountButton();
+});
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
@@ -199,6 +249,7 @@ if (supabaseClient) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
     }
+    updateAdminAccess();
   });
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
@@ -206,8 +257,44 @@ if (supabaseClient) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
     }
+    updateAdminAccess();
   });
 }
+
+async function updateAdminAccess() {
+  if (!supabaseClient || !currentUser) {
+    adminButton.classList.add("hidden");
+    adminPanel.classList.add("hidden");
+    return;
+  }
+  const { data, error } = await supabaseClient.from("admin_users").select("user_id").eq("user_id", currentUser.id).maybeSingle();
+  if (error || !data) {
+    adminButton.classList.add("hidden");
+    return;
+  }
+  adminButton.classList.remove("hidden");
+}
+
+async function loadAdminBookings() {
+  const status = document.querySelector("#admin-status");
+  const list = document.querySelector("#admin-bookings");
+  status.textContent = "Loading bookings…";
+  const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(50);
+  if (error) {
+    status.textContent = error.message;
+    return;
+  }
+  status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
+  list.innerHTML = data.length
+    ? data.map(booking => `<div class="admin-booking"><strong>${booking.service_tier} · $${(booking.price_cents / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline} · ${booking.status}</small></div>`).join("")
+    : "<p class=\"field-hint\">No bookings yet.</p>";
+}
+
+adminButton.addEventListener("click", () => {
+  adminPanel.classList.toggle("hidden");
+  if (!adminPanel.classList.contains("hidden")) loadAdminBookings();
+});
+document.querySelector("#close-admin").addEventListener("click", () => adminPanel.classList.add("hidden"));
 
 updateAccountButton();
 showStep(1);

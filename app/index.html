@@ -13,6 +13,7 @@
         <div class="header-actions">
           <span class="service-zone">NYC pilot</span>
           <button id="account-button" class="account-button" type="button">Sign in</button>
+          <button id="admin-button" class="account-button hidden" type="button">Admin</button>
         </div>
       </header>
 
@@ -25,7 +26,14 @@
           <button class="primary-button" type="submit">Continue with email</button>
         </form>
         <p id="account-status" class="field-hint">Prototype mode: no password required.</p>
+        <button id="sign-out" class="secondary-button hidden" type="button">Sign out</button>
       </div>
+
+      <section id="admin-panel" class="admin-panel hidden" aria-live="polite">
+        <div class="panel-heading"><div><p class="eyebrow">Operations</p><h2>Booking dashboard</h2></div><button id="close-admin" class="close-button" type="button" aria-label="Close admin dashboard">×</button></div>
+        <p id="admin-status" class="field-hint">Loading bookings…</p>
+        <div id="admin-bookings" class="admin-bookings"></div>
+      </section>
 
       <section class="progress" aria-label="Booking progress">
         <div class="progress-label"><span id="step-label">1 · Address</span><span id="step-count">1 of 5</span></div>
@@ -44,8 +52,8 @@
           <option value="80 Rivington Street, Manhattan"></option>
           <option value="150 Orchard Street, Manhattan"></option>
         </datalist>
-        <p id="address-hint" class="field-hint">Pilot coverage includes select Lower Manhattan and North Brooklyn addresses.</p>
-        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small>North Brooklyn pilot zone · service available</small></div></div>
+        <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a></div></div>
       </section>
 
       <section id="screen-photos" class="screen">
