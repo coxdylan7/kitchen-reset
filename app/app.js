@@ -85,11 +85,7 @@ async function locateAddress(address) {
   if (regionError) throw new Error("Approved service regions are unavailable right now.");
   const activeRegions = pilotRegions || [];
   const regionText = `${result.display_name} ${result.address.city} ${result.address.neighborhood || ""} ${result.address.district || ""} ${result.address.county || ""}`.toLowerCase();
-  const matchedRegion = activeRegions.find(region => {
-    const stateMatches = region.state === result.address.state;
-    const textMatches = regionText.includes(region.name.toLowerCase()) || regionText.includes(region.borough.toLowerCase());
-    return stateMatches && textMatches;
-  });
+  const matchedRegion = activeRegions.find(region => region.state === result.address.state && regionText.includes(region.name.toLowerCase()));
   const boroughMatches = matchedRegion && (
     regionText.includes(matchedRegion.name.toLowerCase()) ||
     regionText.includes(matchedRegion.borough.toLowerCase())
@@ -146,6 +142,13 @@ function showAddressResult(result) {
   const addressResult = document.querySelector("#address-result");
   const mapLink = document.querySelector("#map-link");
   addressResult.classList.remove("hidden");
+  const availability = document.querySelector("#address-availability");
+  const title = document.querySelector("#address-result-title");
+  title.textContent = result.inPilot ? "Address available" : "Address not available";
+  availability.textContent = result.inPilot
+    ? `Cross-referenced with active region: ${result.matchedRegion.name}`
+    : "This address does not match an active Admin-approved region.";
+  availability.className = result.inPilot ? "availability" : "unavailable";
   document.querySelector("#address-result-copy").textContent = `${result.display_name} · address located`;
   mapLink.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(result.lat)}&mlon=${encodeURIComponent(result.lon)}#map=18/${encodeURIComponent(result.lat)}/${encodeURIComponent(result.lon)}`;
   document.querySelector("#google-map-link").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${result.lat},${result.lon}`)}`;
@@ -308,7 +311,7 @@ next.addEventListener("click", async () => {
       const result = await locateAddress(state.address);
       if (!result) throw new Error("We couldn’t locate that address. Check the street, number, and borough.");
       if (!result.inPilot) {
-        hint.textContent = "That address is outside the selected service region. Check the address or choose another region.";
+        hint.textContent = "Not available yet—this address is outside the active Admin-approved regions.";
         hint.classList.add("error");
         showMapSearch(state.address);
         next.disabled = false;
@@ -447,8 +450,21 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
     const candidate = await lookupAddressCandidate(address);
     verifiedAccountAddress = candidate.address;
     input.value = candidate.address;
-    status.textContent = `Address verified: ${candidate.address}`;
-    status.classList.remove("error");
+    const attrs = candidate.attributes || {};
+    const { data: regions, error: regionError } = await supabaseClient
+      .from("pilot_regions")
+      .select("name,state")
+      .eq("active", true);
+    if (regionError) throw new Error("Address verified, but active-region availability could not be checked.");
+    const searchableAddress = `${candidate.address} ${attrs.City || ""} ${attrs.Nbrhd || ""} ${attrs.District || ""}`.toLowerCase();
+    const matchedRegion = (regions || []).find(region =>
+      region.state === (attrs.RegionAbbr || "") && searchableAddress.includes(region.name.toLowerCase())
+    );
+    status.textContent = matchedRegion
+      ? `Address verified and available in ${matchedRegion.name}.`
+      : "Address verified, but it is outside the active Admin-approved regions.";
+    status.classList.toggle("error", !matchedRegion);
+    status.dataset.available = matchedRegion ? "true" : "false";
   } catch (error) {
     status.textContent = error.message;
     status.classList.add("error");
@@ -457,8 +473,8 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
 document.querySelector("#save-account-address").addEventListener("click", () => {
   const address = document.querySelector("#account-address").value.trim();
   const status = document.querySelector("#account-address-status");
-  if (!address || address !== verifiedAccountAddress) {
-    status.textContent = "Look up and verify this address before saving it.";
+  if (!address || address !== verifiedAccountAddress || status.dataset.available !== "true") {
+    status.textContent = "Verify the address and confirm it is in an active service region before saving.";
     status.classList.add("error");
     return;
   }
@@ -714,7 +730,7 @@ document.querySelector("#lookup-admin-region").addEventListener("click", async (
       throw new Error("Choose a neighborhood, city, or county in NY, NJ, or CT.");
     }
     selectedAdminRegion = {
-      name: candidate.address.split(",")[0],
+      name: attrs.Nbrhd || attrs.City || attrs.District || candidate.address.split(",")[0],
       borough,
       state,
       lat: candidate.location.y,

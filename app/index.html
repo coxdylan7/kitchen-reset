@@ -110,8 +110,8 @@
           <input id="address-zip" class="text-field" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP code" required />
         </div>
         <datalist id="address-suggestions"></datalist>
-        <p id="address-hint" class="field-hint">Start typing your address. We’ll look it up and check it against the active service regions.</p>
-        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><a id="google-map-link" href="#" target="_blank" rel="noopener">Open in Google Maps</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>
+        <p id="address-hint" class="field-hint">Start typing your address. We’ll look it up and cross-reference it against the active service regions.</p>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong id="address-result-title">Address located</strong><small id="address-result-copy"></small><small id="address-availability"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><a id="google-map-link" href="#" target="_blank" rel="noopener">Open in Google Maps</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>
       </section>
 
       <section id="map-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
