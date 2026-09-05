@@ -715,17 +715,16 @@ async function loadWorkerJobs() {
   assignments.innerHTML = data.length
     ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
     : "<p class=\"field-hint\">No open jobs are available right now.</p>";
+  assignments.querySelectorAll(".worker-job-button").forEach(button => {
+    button.addEventListener("click", () => showWorkerJobReview(button.dataset.jobId));
+  });
 }
 
-document.querySelector("#worker-assignments").addEventListener("click", async event => {
-  const button = event.target.closest(".worker-job-button");
-  if (!button) return;
-  event.preventDefault();
-  event.stopPropagation();
+function showWorkerJobReview(jobId) {
   const review = document.querySelector("#worker-job-review");
   const copy = document.querySelector("#worker-job-review-copy");
   const status = document.querySelector("#worker-job-review-status");
-  const job = workerJobs.get(button.dataset.jobId);
+  const job = workerJobs.get(jobId);
   if (!job) {
     status.textContent = "This job is no longer available.";
     review.classList.remove("hidden");
@@ -735,7 +734,8 @@ document.querySelector("#worker-assignments").addEventListener("click", async ev
   copy.innerHTML = `<strong>${job.service_tier}</strong><br>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes<br>Customer payout: $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}`;
   status.textContent = "Review the address, deadline, duration, and payout before accepting.";
   review.classList.remove("hidden");
-});
+  review.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
 document.querySelector("#close-worker-job-review").addEventListener("click", () => {
   document.querySelector("#worker-job-review").classList.add("hidden");
 });
