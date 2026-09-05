@@ -104,7 +104,7 @@
         <h1>Let’s reset your sink.</h1>
         <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
         <label class="field-label" for="address-street">Service address</label>
-        <select id="service-region" class="text-field" aria-label="Service region" required><option value="">Choose a service region first</option></select>
+        <select id="service-region" class="text-field" aria-label="Service region" required><option value="">Choose an approved service region first</option></select>
         <div class="address-fields">
           <input id="address-street" class="text-field" list="address-suggestions" autocomplete="address-line1" placeholder="Street address" required />
           <input id="address-unit" class="text-field" autocomplete="address-line2" placeholder="Apt / unit (optional)" />
@@ -113,7 +113,7 @@
           <input id="address-zip" class="text-field" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP code" required />
         </div>
         <datalist id="address-suggestions"></datalist>
-        <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
+        <p id="address-hint" class="field-hint">Choose an approved region, then start typing your address. We’ll fill in the city, state, and ZIP automatically.</p>
         <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><a id="google-map-link" href="#" target="_blank" rel="noopener">Open in Google Maps</a><button id="map-view-button" class="text-button" type="button">View full map</button><iframe id="map-inline-preview" title="OpenStreetMap address preview" loading="lazy"></iframe><small id="map-inline-status" class="field-hint">Loading map preview…</small></div></div>
       </section>
 

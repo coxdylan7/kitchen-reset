@@ -24,16 +24,7 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
 let currentUser = null;
 let mapSearchAddress = "";
 let addressSearchTimer = null;
-const fallbackRegions = [
-  { name: "Williamsburg", borough: "Brooklyn", state: "NY" },
-  { name: "Bushwick", borough: "Brooklyn", state: "NY" },
-  { name: "Bedford-Stuyvesant", borough: "Brooklyn", state: "NY" },
-  { name: "Lower East Side", borough: "Manhattan", state: "NY" },
-  { name: "Greenpoint", borough: "Brooklyn", state: "NY" },
-  { name: "Jersey City", borough: "Hudson County", state: "NJ" },
-  { name: "Newark", borough: "Essex County", state: "NJ" },
-  { name: "Stamford", borough: "Fairfield County", state: "CT" }
-];
+let approvedRegions = [];
 
 function openPage(panel) {
   [accountPanel, adminPanel, proPanel, mapPanel]
@@ -80,19 +71,23 @@ async function locateAddress(address) {
     address: {
       city: candidate.attributes?.City || "",
       state: candidate.attributes?.RegionAbbr || candidate.attributes?.Region || "",
-      zip: candidate.attributes?.Postal || ""
+      zip: candidate.attributes?.Postal || "",
+      neighborhood: candidate.attributes?.Nbrhd || "",
+      district: candidate.attributes?.District || "",
+      county: candidate.attributes?.Subregion || ""
     }
   } : null;
   if (!result) return null;
   const borough = result.address?.city || "";
-  const { data: pilotRegions } = supabaseClient
+  const { data: pilotRegions, error: regionError } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true)
-    : { data: fallbackRegions };
-  const activeRegions = pilotRegions?.length ? pilotRegions : fallbackRegions;
+    : { data: [], error: new Error("Approved service regions are unavailable.") };
+  if (regionError) throw new Error("Approved service regions are unavailable right now.");
+  const activeRegions = pilotRegions || [];
   const selectedRegionName = document.querySelector("#service-region").value;
   const selectedOption = document.querySelector("#service-region").selectedOptions[0];
   const matchedRegion = activeRegions.find(region => region.name === selectedRegionName);
-  const regionText = `${result.display_name} ${result.address.city}`.toLowerCase();
+  const regionText = `${result.display_name} ${result.address.city} ${result.address.neighborhood || ""} ${result.address.district || ""} ${result.address.county || ""}`.toLowerCase();
   const boroughMatches = matchedRegion && (
     regionText.includes(matchedRegion.name.toLowerCase()) ||
     regionText.includes(matchedRegion.borough.toLowerCase())
@@ -104,8 +99,8 @@ async function locateAddress(address) {
 }
 
 async function suggestAddresses(value) {
-  if (value.trim().length < 3) return;
-  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent || "New York, New Jersey, Connecticut";
+  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent;
+  if (value.trim().length < 3 || !region) return;
   const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${value}, ${region}`)}`;
   const response = await fetch(url);
   if (!response.ok) return;
@@ -114,12 +109,30 @@ async function suggestAddresses(value) {
   datalist.innerHTML = (results.suggestions || []).map(result => `<option value="${result.text}"></option>`).join("");
 }
 
+async function extrapolateAddress() {
+  const input = document.querySelector("#address-street");
+  if (input.value.trim().length < 5 || !document.querySelector("#service-region").value) return;
+  try {
+    const result = await locateAddress(input.value.trim());
+    if (!result) return;
+    document.querySelector("#address-city").value = result.address.city;
+    document.querySelector("#address-state").value = result.address.state;
+    document.querySelector("#address-zip").value = result.address.zip;
+    document.querySelector("#address-hint").textContent = "Address details filled from the selected approved-region search.";
+  } catch (error) {
+    document.querySelector("#address-hint").textContent = error.message;
+    document.querySelector("#address-hint").classList.add("error");
+  }
+}
+
 document.querySelector("#address-street").addEventListener("input", event => {
   state.addressVerified = false;
   document.querySelector("#address-result").classList.add("hidden");
   clearTimeout(addressSearchTimer);
   addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
 });
+document.querySelector("#address-street").addEventListener("change", extrapolateAddress);
+document.querySelector("#address-street").addEventListener("blur", extrapolateAddress);
 
 function showAddressResult(result) {
   const addressResult = document.querySelector("#address-result");
@@ -638,10 +651,12 @@ async function loadProfessionalRegions() {
   const { data } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
     : { data: null };
-  const regions = data?.length ? data : fallbackRegions;
-  const options = regions.map(region => `<option value="${region.name}" data-state="${region.state}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
-  select.innerHTML = '<option value="">Choose a region</option>' + options;
-  addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
+  approvedRegions = data || [];
+  const options = approvedRegions.map(region => `<option value="${region.name}" data-state="${region.state}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
+  select.innerHTML = '<option value="">Choose an approved region</option>' + options;
+  addressRegion.innerHTML = approvedRegions.length
+    ? '<option value="">Choose an approved service region first</option>' + options
+    : '<option value="">No approved service regions are available</option>';
   accountRegion.innerHTML = '<option value="">Choose a region</option>' + options;
   const savedRegion = localStorage.getItem("kitchenResetRegion");
   if (savedRegion) {
