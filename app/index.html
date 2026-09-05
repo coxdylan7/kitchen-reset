@@ -61,7 +61,14 @@
         <div class="admin-settings">
           <div class="section-heading"><span>Service regions</span><small>Public directory controls</small></div>
           <form id="region-form" class="admin-form">
-            <input id="pilot-region" class="text-field" placeholder="Williamsburg" required />
+            <input id="pilot-region" class="text-field" list="region-suggestions" placeholder="Start typing a region…" autocomplete="off" required />
+            <datalist id="region-suggestions">
+              <option value="Williamsburg"></option>
+              <option value="Bushwick"></option>
+              <option value="Bedford-Stuyvesant"></option>
+              <option value="Lower East Side"></option>
+              <option value="Greenpoint"></option>
+            </datalist>
             <select id="pilot-borough" class="text-field"><option>Brooklyn</option><option>Manhattan</option></select>
             <input id="pilot-description" class="text-field" placeholder="Short public description (optional)" />
             <input id="pilot-map-url" class="text-field" type="url" placeholder="OpenStreetMap region URL (optional)" />

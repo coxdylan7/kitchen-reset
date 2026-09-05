@@ -473,6 +473,7 @@ async function loadAdminBookings() {
 
 async function loadPilotAddresses() {
   const list = document.querySelector("#pilot-regions");
+  const suggestions = document.querySelector("#region-suggestions");
   const { data, error } = await supabaseClient.from("pilot_regions").select("id,name,borough,active").order("name");
   if (error) {
     list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
@@ -480,8 +481,16 @@ async function loadPilotAddresses() {
   }
 
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete</button></small></div>`).join("")
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
+  const existing = new Set([...suggestions.options].map(option => option.value.toLowerCase()));
+  data.forEach(item => {
+    if (existing.has(item.name.toLowerCase())) return;
+    const option = document.createElement("option");
+    option.value = item.name;
+    option.label = `${item.name} · ${item.borough}`;
+    suggestions.appendChild(option);
+  });
   list.querySelectorAll(".address-toggle").forEach(button => button.addEventListener("click", async () => {
     const { error: updateError } = await supabaseClient.from("pilot_regions").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
     if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
