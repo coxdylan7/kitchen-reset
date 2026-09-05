@@ -698,7 +698,10 @@ async function loadWorkerPortal() {
 
 async function loadWorkerJobs() {
   const assignments = document.querySelector("#worker-assignments");
-  if (!supabaseClient || !currentUser) return;
+  if (!supabaseClient || !currentUser) {
+    assignments.innerHTML = "<p class=\"field-hint error\">Sign in before loading worker jobs.</p>";
+    return;
+  }
   assignments.innerHTML = "<p class=\"field-hint\">Loading available jobs…</p>";
   const { data, error } = await supabaseClient
     .from("bookings")
@@ -708,7 +711,12 @@ async function loadWorkerJobs() {
     .order("created_at", { ascending: false })
     .limit(25);
   if (error) {
-    assignments.innerHTML = `<p class="field-hint error">${error.message}</p>`;
+    assignments.innerHTML = `<p class="field-hint error">Jobs could not be loaded: ${error.message}</p>`;
+    return;
+  }
+  const availability = document.querySelector("#worker-availability").dataset.available === "true";
+  if (!availability) {
+    assignments.innerHTML = "<p class=\"field-hint\">You are offline. Click Go available, then refresh jobs.</p>";
     return;
   }
   workerJobs.clear();
@@ -743,6 +751,7 @@ function showWorkerJobReview(jobId) {
 document.querySelector("#close-worker-job-review").addEventListener("click", () => {
   document.querySelector("#worker-job-review").classList.add("hidden");
 });
+document.querySelector("#refresh-worker-jobs").addEventListener("click", loadWorkerJobs);
 document.querySelector("#worker-job-accept").addEventListener("click", async () => {
   const review = document.querySelector("#worker-job-review");
   await acceptWorkerJob(review.dataset.jobId, document.querySelector("#worker-job-accept"));
