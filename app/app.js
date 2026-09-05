@@ -5,6 +5,7 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
+const customerPanel = document.querySelector("#customer-panel");
 const adminButton = document.querySelector("#admin-button");
 const adminPanel = document.querySelector("#admin-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
@@ -19,6 +20,19 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
   }
 }
 let currentUser = null;
+
+function setAuthView(view) {
+  document.querySelector("#account-form").classList.toggle("hidden", view !== "email");
+  document.querySelector("#password-form").classList.toggle("hidden", view !== "password");
+  document.querySelector("#set-password-form").classList.toggle("hidden", view !== "set-password");
+  document.querySelector("#password-login-toggle").classList.toggle("hidden", view === "set-password" || view === "password");
+}
+
+function showPasswordSetup() {
+  accountPanel.classList.remove("hidden");
+  setAuthView("set-password");
+  document.querySelector("#account-status").textContent = "Your email is verified. Create a password for future sign-ins.";
+}
 
 async function locateAddress(address) {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(address + ", New York")}`;
@@ -200,17 +214,25 @@ document.querySelector("#restart").addEventListener("click", () => {
 
 function updateAccountButton() {
   const email = currentUser?.email || localStorage.getItem("kitchenResetEmail");
-  accountButton.textContent = email ? email.split("@")[0] : "Sign in";
+  accountButton.textContent = currentUser ? "Account" : (email ? email.split("@")[0] : "Sign in");
   accountButton.classList.toggle("signed-in", Boolean(email));
   document.querySelector("#sign-out").classList.toggle("hidden", !email);
+  document.querySelector("#password-login-toggle").classList.toggle("hidden", Boolean(currentUser));
 }
 
 accountButton.addEventListener("click", () => {
+  if (currentUser) {
+    customerPanel.classList.toggle("hidden");
+    if (!customerPanel.classList.contains("hidden")) loadCustomerBookings();
+    return;
+  }
   accountPanel.classList.remove("hidden");
+  setAuthView("email");
   document.querySelector("#account-email").focus();
 });
 document.querySelector("#close-account").addEventListener("click", () => accountPanel.classList.add("hidden"));
-document.querySelector("#sign-out").addEventListener("click", async () => {
+document.querySelector("#close-customer").addEventListener("click", () => customerPanel.classList.add("hidden"));
+async function signOut() {
   if (supabaseClient) {
     const { error } = await supabaseClient.auth.signOut();
     if (error) {
@@ -221,8 +243,12 @@ document.querySelector("#sign-out").addEventListener("click", async () => {
   currentUser = null;
   localStorage.removeItem("kitchenResetEmail");
   document.querySelector("#account-status").textContent = "You have been signed out.";
+  customerPanel.classList.add("hidden");
+  setAuthView("email");
   updateAccountButton();
-});
+}
+document.querySelector("#sign-out").addEventListener("click", signOut);
+document.querySelector("#customer-sign-out").addEventListener("click", signOut);
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
@@ -241,6 +267,40 @@ document.querySelector("#account-form").addEventListener("submit", event => {
     })
     .catch(error => { document.querySelector("#account-status").textContent = error.message; });
 });
+document.querySelector("#password-login-toggle").addEventListener("click", () => {
+  setAuthView("password");
+  document.querySelector("#account-password").focus();
+});
+document.querySelector("#password-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const status = document.querySelector("#account-status");
+  status.textContent = "Signing in…";
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email: document.querySelector("#account-email").value.trim(),
+    password: document.querySelector("#account-password").value
+  });
+  status.textContent = error ? error.message : "Signed in.";
+});
+document.querySelector("#set-password-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const password = document.querySelector("#new-password").value;
+  const confirmation = document.querySelector("#confirm-password").value;
+  const status = document.querySelector("#account-status");
+  if (password.length < 8 || password !== confirmation) {
+    status.textContent = "Use at least 8 characters and make both passwords match.";
+    status.classList.add("error");
+    return;
+  }
+  const { error } = await supabaseClient.auth.updateUser({ password, data: { password_set: true } });
+  if (error) {
+    status.textContent = error.message;
+    status.classList.add("error");
+    return;
+  }
+  status.classList.remove("error");
+  status.textContent = "Password saved. You can now use it for future sign-ins.";
+  setAuthView("email");
+});
 
 if (supabaseClient) {
   supabaseClient.auth.getUser().then(({ data }) => {
@@ -248,6 +308,7 @@ if (supabaseClient) {
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
+      if (!currentUser.user_metadata?.password_set) showPasswordSetup();
     }
     updateAdminAccess();
   });
@@ -256,6 +317,10 @@ if (supabaseClient) {
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
+      if (_event === "SIGNED_IN" && !currentUser.user_metadata?.password_set) showPasswordSetup();
+    } else {
+      customerPanel.classList.add("hidden");
+      setAuthView("email");
     }
     updateAdminAccess();
   });
@@ -283,6 +348,21 @@ async function loadAdminBookings() {
   if (error) {
     status.textContent = error.message;
     return;
+  }
+
+  async function loadCustomerBookings() {
+    const status = document.querySelector("#customer-status");
+    const list = document.querySelector("#customer-bookings");
+    status.textContent = "Loading your bookings…";
+    const { data, error } = await supabaseClient.from("bookings").select("id,address,service_tier,price_cents,bonus_cents,deadline,status,created_at").order("created_at", { ascending: false }).limit(20);
+    if (error) {
+      status.textContent = error.message;
+      return;
+    }
+    status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
+    list.innerHTML = data.length
+      ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("")
+      : "<p class=\"field-hint\">You have no bookings yet.</p>";
   }
   status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
   list.innerHTML = data.length
