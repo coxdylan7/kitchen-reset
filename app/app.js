@@ -28,6 +28,7 @@ let mapSearchAddress = "";
 let addressSearchTimer = null;
 let verifiedAccountAddress = "";
 let selectedAdminRegion = null;
+const workerJobs = new Map();
 
 function distanceMiles(lat1, lon1, lat2, lon2) {
   const radians = value => value * Math.PI / 180;
@@ -709,6 +710,8 @@ async function loadWorkerJobs() {
     assignments.innerHTML = `<p class="field-hint error">${error.message}</p>`;
     return;
   }
+  workerJobs.clear();
+  data.forEach(job => workerJobs.set(job.id, job));
   assignments.innerHTML = data.length
     ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
     : "<p class=\"field-hint\">No open jobs are available right now.</p>";
@@ -717,10 +720,12 @@ async function loadWorkerJobs() {
 document.querySelector("#worker-assignments").addEventListener("click", async event => {
   const button = event.target.closest(".worker-job-button");
   if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
   const review = document.querySelector("#worker-job-review");
   const copy = document.querySelector("#worker-job-review-copy");
   const status = document.querySelector("#worker-job-review-status");
-  const job = await getWorkerJob(button.dataset.jobId);
+  const job = workerJobs.get(button.dataset.jobId);
   if (!job) {
     status.textContent = "This job is no longer available.";
     review.classList.remove("hidden");
@@ -752,14 +757,6 @@ document.querySelector("#worker-job-accept").addEventListener("click", async () 
   status.classList.remove("error");
   loadWorkerJobs();
 });
-
-async function getWorkerJob(id) {
-  if (!supabaseClient || !currentUser) return null;
-  const { data, error } = await supabaseClient.from("bookings")
-    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline")
-    .eq("id", id).eq("status", "matching").is("worker_id", null).maybeSingle();
-  return error ? null : data;
-}
 
 async function saveWorkerProfile(name, region) {
   if (!supabaseClient || !currentUser) throw new Error("Sign in before saving a worker profile.");
