@@ -1,7 +1,7 @@
 # Kitchen Reset — Product Framework
 
 **Status:** Draft 0.1  
-**Launch market:** one dense NYC neighborhood cluster (to be selected)  
+**Launch market:** selected regions across New York, New Jersey, and Connecticut
 **Product promise:** Book a trusted Kitchen Reset Pro to make your kitchen usable again, without spending your evening doing dishes.
 
 ## 1. The problem and customer
@@ -18,7 +18,7 @@ A working professional or household in a small apartment who cooks regularly and
 
 ## 2. MVP outcome
 
-Prove that recurring Kitchen Reset bookings can be delivered safely, on time, and profitably inside one compact NYC service zone.
+Prove that recurring Kitchen Reset bookings can be delivered safely, on time, and profitably inside selected tri-state service zones.
 
 The MVP is successful when, after a defined pilot period, we can show:
 
@@ -74,7 +74,7 @@ Targets are hypotheses for the pilot, not public promises.
 - Dynamic/surge pricing or worker-entered bids
 - Full home cleaning, laundry, meal prep, or organization services
 - Restaurant/commercial kitchen service
-- Multi-city launch or citywide NYC coverage
+- Broad multi-state coverage beyond the selected tri-state service zones
 - Subscription plans before recurring demand is demonstrated
 - In-app chat, social/referral programs, loyalty points, or gamification
 - Unreviewable AI pricing: low-confidence estimates must be reviewed

@@ -11,15 +11,16 @@
       <header class="site-header">
         <a class="brand" href="#start" aria-label="Kitchen Reset home">kitchen <em>reset</em></a>
         <div class="header-actions">
-          <span class="service-zone">NYC pilot</span>
+          <span class="service-zone">Tri-state pilot</span>
+          <button id="header-book-button" class="account-button booking-entry" type="button">Book</button>
           <button id="account-button" class="account-button" type="button">Sign in</button>
-          <button id="pro-button" class="account-button" type="button">Work with us</button>
+          <button id="worker-button" class="account-button" type="button">Worker portal</button>
           <button id="admin-button" class="account-button hidden" type="button">Admin</button>
         </div>
       </header>
 
       <div id="account-panel" class="account-panel page-panel hidden" aria-live="polite">
-        <div class="panel-heading"><div><p class="eyebrow">Sign in</p><h2>Keep your booking handy.</h2></div><button id="close-account" class="close-button" type="button" aria-label="Close sign in">×</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">Account</p><h2>Keep your booking handy.</h2></div><button id="close-account" class="close-button" type="button" aria-label="Close account">×</button></div>
         <p>Existing customers can sign in with their password. New customers can create an account here.</p>
         <form id="account-form">
           <label class="field-label" for="account-email">Email address</label>
@@ -38,8 +39,10 @@
         <button id="create-account-button" class="text-button" type="button">New here? Create an account</button>
         <button id="magic-link-button" class="text-button" type="button">Email me a magic link instead</button>
         <p id="account-status" class="field-hint">Use the email address you want connected to your bookings.</p>
+        <button id="account-booking-cta" class="primary-button account-booking-cta hidden" type="button">Start a booking</button>
         <div id="account-dashboard-content" class="hidden">
           <div class="section-heading"><span>My bookings</span><small>Account home</small></div>
+          <button id="book-appointment-button" class="primary-button" type="button">New booking</button>
           <p id="account-customer-status" class="field-hint">Loading your bookings…</p>
           <div id="account-customer-bookings" class="booking-list"></div>
           <div class="settings-block">
@@ -55,6 +58,29 @@
         </div>
       </div>
 
+      <section id="worker-panel" class="dashboard-panel page-panel hidden" aria-live="polite">
+        <div class="panel-heading"><div><p class="eyebrow">Working member</p><h2>Your worker portal</h2></div><button id="close-worker" class="close-button" type="button" aria-label="Close worker portal">×</button></div>
+        <p id="worker-status">Manage your availability and review Kitchen Reset assignments from one place.</p>
+        <div class="worker-card">
+          <div class="section-heading"><span>Availability</span><small id="worker-availability-label">Offline</small></div>
+          <button id="worker-availability" class="secondary-button" type="button">Go available</button>
+          <p class="field-hint">Only go available when you can accept a service in your selected tri-state regions.</p>
+        </div>
+        <div class="worker-card">
+          <div class="section-heading"><span>Today’s assignments</span><small>Worker view</small></div>
+          <div id="worker-assignments"><p class="field-hint">No assignments are available yet.</p></div>
+        </div>
+        <div class="worker-card">
+          <div class="section-heading"><span>Worker profile</span><small>Set up once</small></div>
+          <label class="field-label" for="worker-name">Name</label>
+          <input id="worker-name" class="text-field" placeholder="Your name" />
+          <label class="field-label" for="worker-region">Primary region</label>
+          <select id="worker-region" class="text-field"><option value="">Choose an active region</option></select>
+          <button id="save-worker-profile" class="primary-button" type="button">Save worker profile</button>
+          <p id="worker-profile-status" class="field-hint"></p>
+        </div>
+      </section>
+
       <section id="admin-panel" class="admin-panel page-panel hidden" aria-live="polite">
         <div class="panel-heading"><div><p class="eyebrow">Operations</p><h2>Booking dashboard</h2></div><button id="close-admin" class="close-button" type="button" aria-label="Close admin dashboard">×</button></div>
         <p id="admin-status" class="field-hint">Loading bookings…</p>
@@ -68,8 +94,14 @@
             <datalist id="region-suggestions"></datalist>
             <button id="lookup-admin-region" class="secondary-button" type="button">Look up region</button>
             <p id="admin-region-status" class="field-hint">Search for a place, then confirm the returned map location before adding it.</p>
-            <select id="pilot-state" class="text-field" required><option value="">State from map result</option><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="CT">Connecticut</option></select>
-            <input id="pilot-borough" class="text-field" placeholder="Borough, county, or city" required />
+            <select id="pilot-state" class="text-field" required><option value="">State containing this region</option><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="CT">Connecticut</option></select>
+            <input id="pilot-borough" class="text-field" placeholder="County, borough, or city" required />
+            <label class="field-label" for="pilot-latitude">Precise map point</label>
+            <div class="address-fields">
+              <input id="pilot-latitude" class="text-field" type="number" step="any" placeholder="Latitude" required />
+              <input id="pilot-longitude" class="text-field" type="number" step="any" placeholder="Longitude" required />
+            </div>
+            <p class="field-hint">Use the returned point, or adjust the coordinates to the exact center you want this region to cover.</p>
             <label class="field-label" for="pilot-radius">Allowed distance from this map point</label>
             <input id="pilot-radius" class="text-field" type="number" min="0.25" max="25" step="0.25" value="3" required />
             <input id="pilot-description" class="text-field" placeholder="Short public description (optional)" />
@@ -102,7 +134,8 @@
       <section id="screen-address" class="screen active">
         <p class="eyebrow">A usable kitchen, on your schedule</p>
         <h1>Let’s reset your sink.</h1>
-        <p class="lede">Start with your address. We’re currently serving a small set of NYC neighborhoods.</p>
+        <p class="lede">Start with your address. We’re rolling out across selected regions in New York, New Jersey, and Connecticut.</p>
+        <button id="start-booking-button" class="primary-button start-booking-button" type="button">Start a new booking</button>
         <label class="field-label" for="address-street">Service address</label>
         <div class="address-fields">
           <input id="address-street" class="text-field" list="address-suggestions" autocomplete="address-line1" placeholder="Street address" required />
@@ -203,7 +236,7 @@
         <article class="status-card">
           <div class="section-heading"><span>Booking status</span><small id="status-updated">Just now</small></div>
           <div class="status-step complete"><span>✓</span><div><b>Request received</b><small>We have your photos and booking details.</small></div></div>
-          <div class="status-step current"><span>2</span><div><b>Finding your reset pro</b><small>We’re matching within the pilot service zone.</small></div></div>
+          <div class="status-step current"><span>2</span><div><b>Finding your reset pro</b><small>We’re matching within the tri-state pilot service zone.</small></div></div>
           <div class="status-step"><span>3</span><div><b>Deadline confirmed</b><small>We’ll notify you when a worker accepts.</small></div></div>
         </article>
         <button id="restart" class="secondary-button" type="button">Create another prototype booking</button>

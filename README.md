@@ -1,6 +1,6 @@
 # Kitchen Reset
 
-Product foundation for a New York City marketplace that books trusted workers to restore a customer's kitchen: wash, dry, put away dishes, and reset the sink/counter area.
+Product foundation for a tri-state marketplace that books trusted workers to restore a customer's kitchen: wash, dry, put away dishes, and reset the sink/counter area across selected regions in New York, New Jersey, and Connecticut.
 
 Start with [the product framework](docs/product-framework.md). It is the source of truth for what belongs in the MVP. The photo-assessment rules are in [the AI intake rubric](docs/ai-intake-rubric.md).
 
@@ -26,6 +26,7 @@ After the first push, GitHub Pages will deploy from the workflow. The deployment
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+   If the project was already initialized before geographic availability was added, also run [`supabase/migrations/20260905_add_region_coordinates.sql`](supabase/migrations/20260905_add_region_coordinates.sql). This adds the latitude, longitude, and radius columns without deleting existing regions.
 3. Copy `app/config.example.js` to `app/config.js`.
 4. Replace the URL and publishable/anon key in `app/config.js` using **Project Settings → Data API** and **API Keys**.
 5. In Supabase **Authentication → URL Configuration**, add the GitHub Pages URL (for example `https://coxdylan7.github.io/kitchen-reset/`) to the allowed redirect URLs.

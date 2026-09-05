@@ -5,11 +5,13 @@ const back = document.querySelector("#back");
 const screens = ["address", "photos", "quote", "schedule", "confirm", "success"];
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
-const proButton = document.querySelector("#pro-button");
 const proPanel = document.querySelector("#pro-panel");
+const workerButton = document.querySelector("#worker-button");
+const workerPanel = document.querySelector("#worker-panel");
 const mapPanel = document.querySelector("#map-panel");
 const adminButton = document.querySelector("#admin-button");
 const adminPanel = document.querySelector("#admin-panel");
+const headerBookButton = document.querySelector("#header-book-button");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
 let supabaseClient = null;
 let supabaseInitError = null;
@@ -37,8 +39,17 @@ function distanceMiles(lat1, lon1, lat2, lon2) {
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function findRegionMatch(lat, lon, state, regions) {
+  const normalizedState = String(state || "").toUpperCase();
+  return (regions || [])
+    .filter(region => region.latitude != null && region.longitude != null && String(region.state || "").toUpperCase() === normalizedState)
+    .map(region => ({ region, distance: distanceMiles(lat, lon, region.latitude, region.longitude) }))
+    .filter(match => match.distance <= Number(match.region.radius_miles))
+    .sort((a, b) => a.distance - b.distance)[0] || null;
+}
+
 function openPage(panel) {
-  [accountPanel, adminPanel, proPanel, mapPanel]
+  [accountPanel, adminPanel, proPanel, workerPanel, mapPanel]
     .filter(Boolean)
     .forEach(item => item.classList.add("hidden"));
   document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
@@ -94,15 +105,8 @@ async function locateAddress(address) {
     : { data: [], error: new Error("Approved service regions are unavailable.") };
   if (regionError) throw new Error("Approved service regions are unavailable right now.");
   const activeRegions = pilotRegions || [];
-  const enteredState = document.querySelector("#address-state").value;
-  const enteredCity = document.querySelector("#address-city").value.trim().toLowerCase();
-  const regionMatches = activeRegions
-    .filter(region => region.state === result.address.state && region.latitude != null && region.longitude != null)
-    .map(region => ({ region, distance: distanceMiles(result.lat, result.lon, region.latitude, region.longitude) }))
-    .filter(match => match.distance <= Number(match.region.radius_miles))
-    .sort((a, b) => a.distance - b.distance);
-  const closestMatch = regionMatches[0];
-  const inPilot = Boolean(closestMatch && enteredState === result.address.state && enteredCity === result.address.city.toLowerCase());
+  const closestMatch = findRegionMatch(result.lat, result.lon, result.address.state, activeRegions);
+  const inPilot = Boolean(closestMatch);
   return { ...result, borough, inPilot, matchedRegion: closestMatch?.region || null, regionDistance: closestMatch?.distance || null };
 }
 
@@ -122,6 +126,31 @@ async function lookupAddressCandidate(address) {
   const payload = await response.json();
   const candidate = payload.candidates?.[0];
   if (!candidate) throw new Error("Address not found. Check the street, city, state, and ZIP.");
+  return candidate;
+}
+
+async function lookupRegionCandidate(searchText) {
+  const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=5&outFields=*&singleLine=${encodeURIComponent(`${searchText}, USA`)}`);
+  if (!response.ok) throw new Error("The map service is unavailable right now.");
+  const payload = await response.json();
+  const candidates = payload.candidates || [];
+  const countySearch = /\bcounty\b/i.test(searchText);
+  const requestedCounty = countySearch
+    ? searchText.replace(/\s*,?\s*(NY|NJ|CT|New York|New Jersey|Connecticut)\b.*$/i, "").trim().toLowerCase()
+    : "";
+  const matchingCounty = candidates.find(item => {
+    const attrs = item.attributes || {};
+    const resultCounty = String(attrs.Subregion || attrs.PlaceName || "").trim().toLowerCase();
+    return String(attrs.Type || "").toLowerCase() === "county" &&
+      resultCounty === requestedCounty;
+  });
+  if (countySearch && !matchingCounty) {
+    throw new Error(`The map service did not return an exact match for “${searchText}”. Search for the full county name, such as “Suffolk County, NY”.`);
+  }
+  const candidate = matchingCounty ||
+    candidates.find(item => !countySearch || !["state", "region"].includes(String(item.attributes?.Type || item.attributes?.Addr_type || "").toLowerCase())) ||
+    candidates[0];
+  if (!candidate) throw new Error("Region not found. Search for a specific county, city, or neighborhood.");
   return candidate;
 }
 
@@ -299,6 +328,28 @@ async function saveBooking() {
   return booking.id;
 }
 
+function startBooking() {
+  [accountPanel, adminPanel, proPanel, workerPanel, mapPanel]
+    .filter(Boolean)
+    .forEach(item => item.classList.add("hidden"));
+  document.querySelector(".progress").classList.remove("hidden");
+  document.querySelector(".action-bar").classList.remove("hidden");
+  state.step = 1;
+  showStep(1);
+  document.querySelector("#address-street").focus();
+}
+
+function openBookingEntry() {
+  if (currentUser) {
+    startBooking();
+    return;
+  }
+  openPage(accountPanel);
+  setAuthView("email");
+  document.querySelector("#account-status").textContent = "Sign in or create an account before starting a booking.";
+  document.querySelector("#account-email").focus();
+}
+
 next.addEventListener("click", async () => {
   if (state.step === 1) {
     const street = document.querySelector("#address-street").value.trim();
@@ -320,15 +371,14 @@ next.addEventListener("click", async () => {
     try {
       const result = await locateAddress(state.address);
       if (!result) throw new Error("We couldn’t locate that address. Check the street, number, and borough.");
+      showAddressResult(result);
       if (!result.inPilot) {
         hint.textContent = "Not available yet—this address is outside the active Admin-approved regions.";
         hint.classList.add("error");
-        showMapSearch(state.address);
         next.disabled = false;
         return;
       }
       hint.textContent = "Good news—this address is in the pilot service area.";
-      showAddressResult(result);
     } catch (error) {
       hint.textContent = error.message;
       hint.classList.add("error");
@@ -391,10 +441,12 @@ function updateAccountButton() {
     document.querySelector("#create-account-button").classList.add("hidden");
     document.querySelector("#magic-link-button").classList.add("hidden");
     document.querySelector("#account-status").classList.add("hidden");
+    document.querySelector("#account-booking-cta").classList.remove("hidden");
   } else {
     document.querySelector("#account-dashboard-content").classList.add("hidden");
     document.querySelector("#account-form").classList.remove("hidden");
     document.querySelector("#account-status").classList.remove("hidden");
+    document.querySelector("#account-booking-cta").classList.add("hidden");
   }
 }
 
@@ -410,6 +462,10 @@ accountButton.addEventListener("click", () => {
 });
 document.querySelector("#close-map").addEventListener("click", () => closePage(mapPanel));
 document.querySelector("#close-account").addEventListener("click", () => closePage(accountPanel));
+document.querySelector("#book-appointment-button").addEventListener("click", startBooking);
+document.querySelector("#account-booking-cta").addEventListener("click", startBooking);
+document.querySelector("#start-booking-button").addEventListener("click", startBooking);
+headerBookButton.addEventListener("click", openBookingEntry);
 async function signOut() {
   if (supabaseClient) {
     const { error } = await supabaseClient.auth.signOut();
@@ -466,11 +522,7 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
       .select("name,state,latitude,longitude,radius_miles")
       .eq("active", true);
     if (regionError) throw new Error("Address verified, but active-region availability could not be checked.");
-    const matchedRegion = (regions || [])
-      .filter(region => region.latitude != null && region.longitude != null && region.state === (attrs.RegionAbbr || ""))
-      .map(region => ({ region, distance: distanceMiles(candidate.location.y, candidate.location.x, region.latitude, region.longitude) }))
-      .filter(match => match.distance <= Number(match.region.radius_miles))
-      .sort((a, b) => a.distance - b.distance)[0];
+    const matchedRegion = findRegionMatch(candidate.location.y, candidate.location.x, String(attrs.RegionAbbr || "").toUpperCase(), regions);
     status.textContent = matchedRegion
       ? `Address verified and available in ${matchedRegion.region.name} · ${matchedRegion.distance.toFixed(2)} miles from center.`
       : "Address verified, but it is outside the active Admin-approved regions.";
@@ -582,8 +634,34 @@ if (supabaseClient) {
   });
 }
 
-proButton.addEventListener("click", () => openPage(proPanel));
 document.querySelector("#close-pro").addEventListener("click", () => closePage(proPanel));
+workerButton.addEventListener("click", () => {
+  openPage(workerPanel);
+  loadProfessionalRegions();
+});
+document.querySelector("#close-worker").addEventListener("click", () => closePage(workerPanel));
+document.querySelector("#worker-availability").addEventListener("click", event => {
+  const available = event.currentTarget.dataset.available !== "true";
+  event.currentTarget.dataset.available = String(available);
+  event.currentTarget.textContent = available ? "Go offline" : "Go available";
+  document.querySelector("#worker-availability-label").textContent = available ? "Available" : "Offline";
+  document.querySelector("#worker-status").textContent = available
+    ? "You are marked available for new tri-state assignments."
+    : "You are offline and will not be shown for new assignments.";
+});
+document.querySelector("#save-worker-profile").addEventListener("click", () => {
+  const name = document.querySelector("#worker-name").value.trim();
+  const region = document.querySelector("#worker-region").value;
+  const status = document.querySelector("#worker-profile-status");
+  if (!name || !region) {
+    status.textContent = "Add your name and choose a primary region.";
+    status.classList.add("error");
+    return;
+  }
+  localStorage.setItem("kitchenResetWorkerProfile", JSON.stringify({ name, region }));
+  status.textContent = "Worker profile saved on this device.";
+  status.classList.remove("error");
+});
 document.querySelector("#pro-form").addEventListener("submit", async event => {
   event.preventDefault();
   const status = document.querySelector("#pro-status");
@@ -650,7 +728,7 @@ async function loadPilotAddresses() {
   document.querySelector("#total-region-count").textContent = data.length;
 
   list.innerHTML = data.length
-    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.latitude != null ? `${item.radius_miles} mile radius` : "Needs map coordinates"} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
+    ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.latitude != null ? `${item.radius_miles} mile radius` : "Needs map coordinates"} · ${item.active ? "Active" : "Inactive"}</small><div class="region-actions"><input class="region-radius text-field" data-id="${item.id}" type="number" min="0.25" max="25" step="0.25" value="${item.radius_miles ?? 3}" aria-label="Allowed radius for ${item.name}"><button class="text-button region-radius-save" data-id="${item.id}" type="button">Save distance</button><button class="text-button region-coordinates-refresh" data-id="${item.id}" data-name="${item.name}" data-borough="${item.borough}" data-state="${item.state}" type="button">Update map point</button><button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}" type="button">${item.active ? "Disable" : "Enable"}</button><button class="text-button address-delete" data-id="${item.id}" type="button">Delete permanently</button></div></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
   const existing = new Set([...suggestions.options].map(option => option.value.toLowerCase()));
   data.forEach(item => {
@@ -664,6 +742,49 @@ async function loadPilotAddresses() {
     const { error: updateError } = await supabaseClient.from("pilot_regions").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
     if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
     else loadPilotAddresses();
+  }));
+  list.querySelectorAll(".region-radius-save").forEach(button => button.addEventListener("click", async () => {
+    const input = list.querySelector(`.region-radius[data-id="${button.dataset.id}"]`);
+    const radius = Number(input.value);
+    if (!Number.isFinite(radius) || radius < 0.25 || radius > 25) {
+      regionStatus.textContent = "Distance must be between 0.25 and 25 miles.";
+      return;
+    }
+    button.disabled = true;
+    const { error: updateError } = await supabaseClient
+      .from("pilot_regions")
+      .update({ radius_miles: radius })
+      .eq("id", button.dataset.id);
+    if (updateError) {
+      regionStatus.textContent = `Unable to save distance: ${updateError.message}`;
+      button.disabled = false;
+    } else {
+      loadPilotAddresses();
+    }
+  }));
+  list.querySelectorAll(".region-coordinates-refresh").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    regionStatus.textContent = `Updating map point for ${button.dataset.name}…`;
+    try {
+      const candidate = await lookupAddressCandidate(`${button.dataset.name}, ${button.dataset.borough}, ${button.dataset.state}`);
+      const state = String(candidate.attributes?.RegionAbbr || "").toUpperCase();
+      if (state !== button.dataset.state || !candidate.location?.y || !candidate.location?.x) {
+        throw new Error("The map service did not return a usable point in the configured state.");
+      }
+      const { error: updateError } = await supabaseClient
+        .from("pilot_regions")
+        .update({
+          latitude: candidate.location.y,
+          longitude: candidate.location.x,
+          map_url: `https://www.openstreetmap.org/?mlat=${candidate.location.y}&mlon=${candidate.location.x}#map=13/${candidate.location.y}/${candidate.location.x}`
+        })
+        .eq("id", button.dataset.id);
+      if (updateError) throw updateError;
+      loadPilotAddresses();
+    } catch (error) {
+      regionStatus.textContent = `Unable to update map point: ${error.message}`;
+      button.disabled = false;
+    }
   }));
   list.querySelectorAll(".address-delete").forEach(button => button.addEventListener("click", async () => {
     const { error: deleteError } = await supabaseClient.from("pilot_regions").delete().eq("id", button.dataset.id);
@@ -699,15 +820,22 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
     document.querySelector("#admin-region-status").classList.add("error");
     return;
   }
+  const latitude = Number(document.querySelector("#pilot-latitude").value);
+  const longitude = Number(document.querySelector("#pilot-longitude").value);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    document.querySelector("#admin-region-status").textContent = "Enter a valid latitude and longitude for the region map point.";
+    document.querySelector("#admin-region-status").classList.add("error");
+    return;
+  }
   const { error } = await supabaseClient.from("pilot_regions").insert({
     name: selectedAdminRegion.name,
     borough: document.querySelector("#pilot-borough").value.trim(),
     state: selectedAdminRegion.state,
-    latitude: selectedAdminRegion.lat,
-    longitude: selectedAdminRegion.lon,
+    latitude,
+    longitude,
     radius_miles: Number(document.querySelector("#pilot-radius").value),
     description: document.querySelector("#pilot-description").value.trim() || null,
-    map_url: `https://www.openstreetmap.org/?mlat=${selectedAdminRegion.lat}&mlon=${selectedAdminRegion.lon}#map=13/${selectedAdminRegion.lat}/${selectedAdminRegion.lon}`
+    map_url: `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=13/${latitude}/${longitude}`
   });
   if (error) {
     document.querySelector("#admin-status").textContent = error.message;
@@ -735,24 +863,33 @@ document.querySelector("#lookup-admin-region").addEventListener("click", async (
   }
   status.textContent = "Looking up region on the map database…";
   try {
-    const candidate = await lookupAddressCandidate(input.value.trim());
+    const searchText = input.value.trim();
+    const candidate = await lookupRegionCandidate(searchText);
     const attrs = candidate.attributes || {};
     const regionValue = String(attrs.RegionAbbr || attrs.RegionCode || attrs.Region || candidate.address.match(/\b(NY|NJ|CT)\b/i)?.[1] || "").toUpperCase();
     const state = { "NEW YORK": "NY", "NEW JERSEY": "NJ", CONNECTICUT: "CT" }[regionValue] || regionValue;
-    const borough = attrs.District || attrs.City || attrs.Subregion || "";
-    if (!["NY", "NJ", "CT"].includes(state) || !borough) {
-      throw new Error("Choose a neighborhood, city, or county in NY, NJ, or CT.");
+    const county = attrs.Subregion && /county$/i.test(attrs.Subregion) ? attrs.Subregion : "";
+    const borough = county || attrs.District || attrs.City || attrs.PlaceName || "";
+    const addressType = String(attrs.Type || attrs.Addr_type || "").toLowerCase();
+    const regionName = county || (/\bcounty\b/i.test(searchText)
+      ? searchText.replace(/\s*,\s*(NY|NJ|CT|New York|New Jersey|Connecticut)\b.*$/i, "").trim()
+      : attrs.Nbrhd || attrs.PlaceName || attrs.City || attrs.District || searchText);
+    const isStateOnly = ["state", "region"].includes(addressType) || (!county && !attrs.City && !attrs.District && !attrs.Nbrhd && !attrs.PlaceName);
+    if (!["NY", "NJ", "CT"].includes(state) || !borough || isStateOnly) {
+      throw new Error("Choose a specific neighborhood, city, or county in NY, NJ, or CT—not the whole state.");
     }
     selectedAdminRegion = {
-      name: attrs.Nbrhd || attrs.City || attrs.District || candidate.address.split(",")[0],
+      name: regionName,
       borough,
       state,
       lat: candidate.location.y,
       lon: candidate.location.x
     };
-    input.value = selectedAdminRegion.name;
+    input.value = searchText;
     document.querySelector("#pilot-borough").value = selectedAdminRegion.borough;
     document.querySelector("#pilot-state").value = selectedAdminRegion.state;
+    document.querySelector("#pilot-latitude").value = selectedAdminRegion.lat;
+    document.querySelector("#pilot-longitude").value = selectedAdminRegion.lon;
     if (document.querySelector("#pilot-state").value !== selectedAdminRegion.state) {
       throw new Error("The map result returned an unsupported state.");
     }
@@ -761,7 +898,7 @@ document.querySelector("#lookup-admin-region").addEventListener("click", async (
     const frame = document.querySelector("#admin-region-map");
     frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${selectedAdminRegion.lat}%2C${selectedAdminRegion.lon}`;
     frame.classList.remove("hidden");
-    status.textContent = `Map region selected: ${candidate.address}`;
+    status.textContent = `Map region selected: ${selectedAdminRegion.name} · ${selectedAdminRegion.state}. The radius will be measured from this exact map point.`;
     status.classList.remove("error");
   } catch (error) {
     status.textContent = error.message;
@@ -771,12 +908,22 @@ document.querySelector("#lookup-admin-region").addEventListener("click", async (
 
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
+  const workerSelect = document.querySelector("#worker-region");
   const { data } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
     : { data: null };
   const regions = data || [];
   select.innerHTML = '<option value="">Choose an active region</option>' +
     regions.map(region => `<option value="${region.name}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
+  if (workerSelect) {
+    workerSelect.innerHTML = '<option value="">Choose an active region</option>' +
+      regions.map(region => `<option value="${region.name}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
+    const savedProfile = JSON.parse(localStorage.getItem("kitchenResetWorkerProfile") || "null");
+    if (savedProfile) {
+      document.querySelector("#worker-name").value = savedProfile.name || "";
+      workerSelect.value = savedProfile.region || "";
+    }
+  }
   const savedAddress = localStorage.getItem("kitchenResetAddress");
   if (savedAddress) document.querySelector("#address-street").value = savedAddress;
 }
