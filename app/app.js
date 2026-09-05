@@ -24,7 +24,6 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
 let currentUser = null;
 let mapSearchAddress = "";
 let addressSearchTimer = null;
-let approvedRegions = [];
 
 function openPage(panel) {
   [accountPanel, adminPanel, proPanel, mapPanel]
@@ -58,8 +57,7 @@ function showPasswordSetup() {
 }
 
 async function locateAddress(address) {
-  const selectedRegion = document.querySelector("#service-region").selectedOptions[0]?.textContent || "";
-  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, ${selectedRegion}`)}`;
+  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, USA`)}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error("The address service is unavailable. Use the map link to verify it.");
   const payload = await response.json();
@@ -84,10 +82,12 @@ async function locateAddress(address) {
     : { data: [], error: new Error("Approved service regions are unavailable.") };
   if (regionError) throw new Error("Approved service regions are unavailable right now.");
   const activeRegions = pilotRegions || [];
-  const selectedRegionName = document.querySelector("#service-region").value;
-  const selectedOption = document.querySelector("#service-region").selectedOptions[0];
-  const matchedRegion = activeRegions.find(region => region.name === selectedRegionName);
   const regionText = `${result.display_name} ${result.address.city} ${result.address.neighborhood || ""} ${result.address.district || ""} ${result.address.county || ""}`.toLowerCase();
+  const matchedRegion = activeRegions.find(region => {
+    const stateMatches = region.state === result.address.state;
+    const textMatches = regionText.includes(region.name.toLowerCase()) || regionText.includes(region.borough.toLowerCase());
+    return stateMatches && textMatches;
+  });
   const boroughMatches = matchedRegion && (
     regionText.includes(matchedRegion.name.toLowerCase()) ||
     regionText.includes(matchedRegion.borough.toLowerCase())
@@ -99,9 +99,8 @@ async function locateAddress(address) {
 }
 
 async function suggestAddresses(value) {
-  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent;
-  if (value.trim().length < 3 || !region) return;
-  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${value}, ${region}`)}`;
+  if (value.trim().length < 3) return;
+  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${value}, USA`)}`;
   const response = await fetch(url);
   if (!response.ok) return;
   const results = await response.json();
@@ -111,14 +110,14 @@ async function suggestAddresses(value) {
 
 async function extrapolateAddress() {
   const input = document.querySelector("#address-street");
-  if (input.value.trim().length < 5 || !document.querySelector("#service-region").value) return;
+  if (input.value.trim().length < 5) return;
   try {
     const result = await locateAddress(input.value.trim());
     if (!result) return;
     document.querySelector("#address-city").value = result.address.city;
     document.querySelector("#address-state").value = result.address.state;
     document.querySelector("#address-zip").value = result.address.zip;
-    document.querySelector("#address-hint").textContent = "Address details filled from the selected approved-region search.";
+    document.querySelector("#address-hint").textContent = "Address details filled from the address lookup.";
   } catch (error) {
     document.querySelector("#address-hint").textContent = error.message;
     document.querySelector("#address-hint").classList.add("error");
@@ -129,7 +128,10 @@ document.querySelector("#address-street").addEventListener("input", event => {
   state.addressVerified = false;
   document.querySelector("#address-result").classList.add("hidden");
   clearTimeout(addressSearchTimer);
-  addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
+  addressSearchTimer = setTimeout(async () => {
+    await suggestAddresses(event.target.value).catch(() => {});
+    await extrapolateAddress();
+  }, 500);
 });
 document.querySelector("#address-street").addEventListener("change", extrapolateAddress);
 document.querySelector("#address-street").addEventListener("blur", extrapolateAddress);
@@ -169,7 +171,7 @@ function setMapPreviews(lat, lon) {
 
 function showMapSearch(address) {
   const addressResult = document.querySelector("#address-result");
-  const region = document.querySelector("#service-region").selectedOptions[0]?.textContent || "New York, New Jersey, Connecticut";
+  const region = "United States";
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
   document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${address}, ${region}`)}`;
@@ -292,11 +294,6 @@ next.addEventListener("click", async () => {
       return;
     }
     if (!street || !city || !addressState || !zip) { hint.textContent = "Enter the street, city, state, and ZIP code."; hint.classList.add("error"); return; }
-    if (!document.querySelector("#service-region").value) {
-      hint.textContent = "Choose a service region before checking the address.";
-      hint.classList.add("error");
-      return;
-    }
     next.disabled = true;
     hint.classList.remove("error");
     hint.textContent = "Checking the address…";
@@ -415,17 +412,14 @@ async function signOut() {
 document.querySelector("#account-dashboard-sign-out").addEventListener("click", signOut);
 document.querySelector("#save-account-address").addEventListener("click", () => {
   const address = document.querySelector("#account-address").value.trim();
-  const region = document.querySelector("#account-region").value;
   const status = document.querySelector("#account-address-status");
-  if (!address || !region) {
-    status.textContent = "Enter an address and choose a service region.";
+  if (!address) {
+    status.textContent = "Enter an address first.";
     status.classList.add("error");
     return;
   }
   localStorage.setItem("kitchenResetAddress", address);
-  localStorage.setItem("kitchenResetRegion", region);
   document.querySelector("#address-street").value = address;
-  document.querySelector("#service-region").value = region;
   status.textContent = "Address saved. It will be used for your next booking.";
   status.classList.remove("error");
 });
@@ -646,23 +640,9 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
 
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
-  const addressRegion = document.querySelector("#service-region");
-  const accountRegion = document.querySelector("#account-region");
   const { data } = supabaseClient
     ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
     : { data: null };
-  approvedRegions = data || [];
-  const options = approvedRegions.map(region => `<option value="${region.name}" data-state="${region.state}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
-  select.innerHTML = '<option value="">Choose an approved region</option>' + options;
-  addressRegion.innerHTML = approvedRegions.length
-    ? '<option value="">Choose an approved service region first</option>' + options
-    : '<option value="">No approved service regions are available</option>';
-  accountRegion.innerHTML = '<option value="">Choose a region</option>' + options;
-  const savedRegion = localStorage.getItem("kitchenResetRegion");
-  if (savedRegion) {
-    addressRegion.value = savedRegion;
-    accountRegion.value = savedRegion;
-  }
   const savedAddress = localStorage.getItem("kitchenResetAddress");
   if (savedAddress) document.querySelector("#address-street").value = savedAddress;
 }
