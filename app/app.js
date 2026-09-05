@@ -6,12 +6,12 @@ const screens = ["address", "photos", "quote", "schedule", "confirm", "success"]
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
-let supabase = null;
+let supabaseClient = null;
 let supabaseInitError = null;
 if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
   try {
     if (!window.supabase?.createClient) throw new Error("The Supabase client did not load.");
-    supabase = window.supabase.createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey);
+    supabaseClient = window.supabase.createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey);
   } catch (error) {
     supabaseInitError = error;
   }
@@ -87,8 +87,8 @@ document.querySelector("#bonus").addEventListener("input", event => {
 });
 
 async function saveBooking() {
-  if (!supabase || !currentUser) return null;
-  const { data: booking, error } = await supabase.from("bookings").insert({
+  if (!supabaseClient || !currentUser) return null;
+  const { data: booking, error } = await supabaseClient.from("bookings").insert({
     user_id: currentUser.id,
     address: state.address,
     service_tier: state.tier.name,
@@ -103,9 +103,9 @@ async function saveBooking() {
     const file = input.files[0];
     if (!file) continue;
     const path = `${currentUser.id}/${booking.id}/${input.id}-${crypto.randomUUID()}`;
-    const upload = await supabase.storage.from("booking-photos").upload(path, file, { contentType: file.type, upsert: false });
+    const upload = await supabaseClient.storage.from("booking-photos").upload(path, file, { contentType: file.type, upsert: false });
     if (upload.error) throw upload.error;
-    const photo = await supabase.from("booking_photos").insert({
+    const photo = await supabaseClient.from("booking_photos").insert({
       booking_id: booking.id, user_id: currentUser.id, photo_type: input.id, storage_path: path
     });
     if (photo.error) throw photo.error;
@@ -176,7 +176,7 @@ document.querySelector("#close-account").addEventListener("click", () => account
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
   const email = document.querySelector("#account-email").value.trim();
-  if (!supabase) {
+  if (!supabaseClient) {
     localStorage.setItem("kitchenResetEmail", email);
     document.querySelector("#account-status").textContent = supabaseInitError
       ? `Sign-in is temporarily unavailable: ${supabaseInitError.message}`
@@ -184,7 +184,7 @@ document.querySelector("#account-form").addEventListener("submit", event => {
     updateAccountButton();
     return;
   }
-  supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
+  supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } })
     .then(({ error }) => {
       if (error) throw error;
       document.querySelector("#account-status").textContent = "Check your email for a secure sign-in link.";
@@ -192,15 +192,15 @@ document.querySelector("#account-form").addEventListener("submit", event => {
     .catch(error => { document.querySelector("#account-status").textContent = error.message; });
 });
 
-if (supabase) {
-  supabase.auth.getUser().then(({ data }) => {
+if (supabaseClient) {
+  supabaseClient.auth.getUser().then(({ data }) => {
     currentUser = data.user;
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
     }
   });
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
