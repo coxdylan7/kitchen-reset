@@ -221,6 +221,10 @@ function updateAccountButton() {
   document.querySelector("#sign-out").classList.toggle("hidden", !email);
   document.querySelector("#password-login-toggle").classList.toggle("hidden", Boolean(currentUser));
   dashboardButton.textContent = currentUser ? "My bookings" : "Dashboard";
+  if (currentUser) {
+    accountPanel.classList.add("hidden");
+    setAuthView("email");
+  }
 }
 
 accountButton.addEventListener("click", () => {
@@ -335,6 +339,7 @@ if (supabaseClient) {
     if (currentUser) {
       localStorage.setItem("kitchenResetEmail", currentUser.email);
       updateAccountButton();
+      accountPanel.classList.add("hidden");
       if (_event === "SIGNED_IN" && !currentUser.user_metadata?.password_set) showPasswordSetup();
     } else {
       customerPanel.classList.add("hidden");
