@@ -138,13 +138,9 @@ document.querySelector("#address-street").addEventListener("input", event => {
   state.addressVerified = false;
   document.querySelector("#address-result").classList.add("hidden");
   clearTimeout(addressSearchTimer);
-  addressSearchTimer = setTimeout(async () => {
-    await suggestAddresses(event.target.value).catch(() => {});
-    await extrapolateAddress();
-  }, 500);
+  addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
 });
 document.querySelector("#address-street").addEventListener("change", extrapolateAddress);
-document.querySelector("#address-street").addEventListener("blur", extrapolateAddress);
 
 function showAddressResult(result) {
   const addressResult = document.querySelector("#address-result");
@@ -426,16 +422,6 @@ document.querySelector("#account-address").addEventListener("input", event => {
   addressSearchTimer = setTimeout(async () => {
     if (event.target.value.trim().length < 3) return;
     await suggestAddressesFor("account-address-suggestions", event.target.value);
-    if (event.target.value.trim().length < 8) return;
-    try {
-      const candidate = await lookupAddressCandidate(event.target.value.trim());
-      verifiedAccountAddress = candidate.address;
-      event.target.value = candidate.address;
-      document.querySelector("#account-address-status").textContent = `Address verified: ${candidate.address}`;
-      document.querySelector("#account-address-status").classList.remove("error");
-    } catch {
-      verifiedAccountAddress = "";
-    }
   }, 350);
 });
 async function suggestAddressesFor(listId, value) {
