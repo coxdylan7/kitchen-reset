@@ -44,6 +44,9 @@ create table if not exists public.pilot_regions (
   created_at timestamptz not null default now()
 );
 
+alter table public.pilot_regions add column if not exists description text;
+alter table public.pilot_regions add column if not exists map_url text;
+
 create table if not exists public.professional_applications (
   id uuid primary key default gen_random_uuid(),
   name text not null,

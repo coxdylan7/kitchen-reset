@@ -14,6 +14,7 @@
           <span class="service-zone">NYC pilot</span>
           <button id="account-button" class="account-button" type="button">Sign in</button>
           <button id="dashboard-button" class="account-button" type="button">Dashboard</button>
+          <button id="directory-button" class="account-button" type="button">Locations</button>
           <button id="pro-button" class="account-button" type="button">Work with us</button>
           <button id="admin-button" class="account-button hidden" type="button">Admin</button>
         </div>
@@ -46,7 +47,11 @@
         <div class="panel-heading"><div><p class="eyebrow">Your account</p><h2>My bookings</h2></div><button id="close-customer" class="close-button" type="button" aria-label="Close customer dashboard">×</button></div>
         <p id="customer-status" class="field-hint">Loading your bookings…</p>
         <div id="customer-bookings" class="booking-list"></div>
-        <button id="customer-sign-out" class="secondary-button" type="button">Sign out</button>
+        <div class="settings-block">
+          <div class="section-heading"><span>Account settings</span><small>Profile and access</small></div>
+          <p id="account-email-display" class="field-hint"></p>
+          <button id="customer-sign-out" class="secondary-button" type="button">Sign out</button>
+        </div>
       </section>
 
       <section id="admin-panel" class="admin-panel hidden" aria-live="polite">
@@ -54,7 +59,7 @@
         <p id="admin-status" class="field-hint">Loading bookings…</p>
         <div id="admin-bookings" class="admin-bookings"></div>
         <div class="admin-settings">
-          <div class="section-heading"><span>Pilot addresses</span><small>Service area controls</small></div>
+          <div class="section-heading"><span>Service regions</span><small>Public directory controls</small></div>
           <form id="region-form" class="admin-form">
             <input id="pilot-region" class="text-field" placeholder="Williamsburg" required />
             <select id="pilot-borough" class="text-field"><option>Brooklyn</option><option>Manhattan</option></select>
@@ -62,6 +67,12 @@
           </form>
           <div id="pilot-regions" class="admin-bookings"></div>
         </div>
+      </section>
+
+      <section id="directory-panel" class="dashboard-panel hidden" aria-live="polite">
+        <div class="panel-heading"><div><p class="eyebrow">Service directory</p><h2>Where Kitchen Reset is available</h2></div><button id="close-directory" class="close-button" type="button" aria-label="Close locations">×</button></div>
+        <p class="field-hint">Choose a region to see its pilot coverage and open it in OpenStreetMap.</p>
+        <div id="directory-regions" class="directory-list"></div>
       </section>
 
       <section id="dashboard-login-panel" class="dashboard-panel hidden" aria-live="polite">
@@ -101,7 +112,7 @@
           <option value="150 Orchard Street, Manhattan"></option>
         </datalist>
         <p id="address-hint" class="field-hint">We’ll verify the address and pilot coverage before you continue.</p>
-        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><iframe id="map-preview" title="Address map preview" loading="lazy"></iframe></div></div>
+        <div id="address-result" class="address-result hidden"><span class="status-dot"></span><div><strong>Address located</strong><small id="address-result-copy"></small><a id="map-link" href="#" target="_blank" rel="noopener">Open in OpenStreetMap</a><button id="map-view-button" class="text-button" type="button">View map</button></div></div>
       </section>
 
       <section id="screen-photos" class="screen">

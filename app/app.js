@@ -8,6 +8,8 @@ const accountPanel = document.querySelector("#account-panel");
 const customerPanel = document.querySelector("#customer-panel");
 const dashboardButton = document.querySelector("#dashboard-button");
 const dashboardLoginPanel = document.querySelector("#dashboard-login-panel");
+const directoryButton = document.querySelector("#directory-button");
+const directoryPanel = document.querySelector("#directory-panel");
 const proButton = document.querySelector("#pro-button");
 const proPanel = document.querySelector("#pro-panel");
 const adminButton = document.querySelector("#admin-button");
@@ -24,6 +26,25 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
   }
 }
 let currentUser = null;
+let mapSearchAddress = "";
+
+function openPage(panel) {
+  [accountPanel, customerPanel, adminPanel, dashboardLoginPanel, directoryPanel, proPanel]
+    .filter(Boolean)
+    .forEach(item => item.classList.add("hidden"));
+  document.querySelectorAll(".screen").forEach(screen => screen.classList.remove("active"));
+  document.querySelector(".progress").classList.add("hidden");
+  document.querySelector(".action-bar").classList.add("hidden");
+  panel.classList.remove("hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function closePage(panel) {
+  panel.classList.add("hidden");
+  document.querySelector(".progress").classList.remove("hidden");
+  if (state.step !== 6) document.querySelector(".action-bar").classList.remove("hidden");
+  showStep(state.step);
+}
 
 function setAuthView(view) {
   document.querySelector("#account-form").classList.toggle("hidden", view !== "email");
@@ -71,7 +92,7 @@ function showMapSearch(address) {
   addressResult.classList.remove("hidden");
   document.querySelector("#address-result-copy").textContent = "OpenStreetMap search";
   document.querySelector("#map-link").href = `https://www.openstreetmap.org/search?query=${encodeURIComponent(address + ", New York")}`;
-  document.querySelector("#map-preview").removeAttribute("src");
+  mapSearchAddress = address + ", New York";
 }
 
 function showStep(step) {
@@ -249,31 +270,36 @@ function updateAccountButton() {
 
 accountButton.addEventListener("click", () => {
   if (currentUser) {
-    customerPanel.classList.toggle("hidden");
-    if (!customerPanel.classList.contains("hidden")) loadCustomerBookings();
+    openPage(customerPanel);
+    document.querySelector("#account-email-display").textContent = currentUser.email;
+    loadCustomerBookings();
     return;
   }
-  accountPanel.classList.remove("hidden");
+  openPage(accountPanel);
   setAuthView("email");
   document.querySelector("#account-email").focus();
 });
 dashboardButton.addEventListener("click", () => {
   if (currentUser) {
-    customerPanel.classList.remove("hidden");
+    openPage(customerPanel);
     loadCustomerBookings();
     return;
   }
-  dashboardLoginPanel.classList.remove("hidden");
+  openPage(dashboardLoginPanel);
 });
-document.querySelector("#close-dashboard-login").addEventListener("click", () => dashboardLoginPanel.classList.add("hidden"));
+directoryButton.addEventListener("click", () => {
+  openPage(directoryPanel);
+  loadDirectory();
+});
+document.querySelector("#close-directory").addEventListener("click", () => closePage(directoryPanel));
+document.querySelector("#close-dashboard-login").addEventListener("click", () => closePage(dashboardLoginPanel));
 document.querySelector("#dashboard-login-button").addEventListener("click", () => {
-  dashboardLoginPanel.classList.add("hidden");
-  accountPanel.classList.remove("hidden");
+  openPage(accountPanel);
   setAuthView("email");
   document.querySelector("#account-email").focus();
 });
-document.querySelector("#close-account").addEventListener("click", () => accountPanel.classList.add("hidden"));
-document.querySelector("#close-customer").addEventListener("click", () => customerPanel.classList.add("hidden"));
+document.querySelector("#close-account").addEventListener("click", () => closePage(accountPanel));
+document.querySelector("#close-customer").addEventListener("click", () => closePage(customerPanel));
 async function signOut() {
   if (supabaseClient) {
     const { error } = await supabaseClient.auth.signOut();
@@ -285,7 +311,7 @@ async function signOut() {
   currentUser = null;
   localStorage.removeItem("kitchenResetEmail");
   document.querySelector("#account-status").textContent = "You have been signed out.";
-  customerPanel.classList.add("hidden");
+  closePage(customerPanel);
   setAuthView("email");
   updateAccountButton();
 }
@@ -379,8 +405,8 @@ if (supabaseClient) {
   });
 }
 
-proButton.addEventListener("click", () => proPanel.classList.remove("hidden"));
-document.querySelector("#close-pro").addEventListener("click", () => proPanel.classList.add("hidden"));
+proButton.addEventListener("click", () => openPage(proPanel));
+document.querySelector("#close-pro").addEventListener("click", () => closePage(proPanel));
 document.querySelector("#pro-form").addEventListener("submit", async event => {
   event.preventDefault();
   const status = document.querySelector("#pro-status");
@@ -436,15 +462,36 @@ async function loadPilotAddresses() {
     list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
     return;
   }
+
   list.innerHTML = data.length
     ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button></small></div>`).join("")
     : "<p class=\"field-hint\">No pilot regions configured.</p>";
   list.querySelectorAll(".address-toggle").forEach(button => button.addEventListener("click", async () => {
-    const { error: updateError } = await supabaseClient.from("pilot_addresses").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
+    const { error: updateError } = await supabaseClient.from("pilot_regions").update({ active: button.dataset.active !== "true" }).eq("id", button.dataset.id);
     if (updateError) list.insertAdjacentHTML("afterbegin", `<p class="field-hint error">${updateError.message}</p>`);
     else loadPilotAddresses();
   }));
 }
+
+async function loadDirectory() {
+  const list = document.querySelector("#directory-regions");
+  if (!supabaseClient) {
+    list.innerHTML = "<p class=\"field-hint\">Connect the service directory to view active regions.</p>";
+    return;
+  }
+  const { data, error } = await supabaseClient.from("pilot_regions").select("name,borough,description,map_url").eq("active", true).order("name");
+  if (error) {
+    list.innerHTML = `<p class="field-hint error">${error.message}</p>`;
+    return;
+  }
+  list.innerHTML = data.length
+    ? data.map(region => `<article class="directory-card"><strong>${region.name}</strong><small>${region.borough}${region.description ? ` · ${region.description}` : ""}</small><a href="${region.map_url || `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${region.name}, ${region.borough}, New York`)}`}" target="_blank" rel="noopener">Open region in OpenStreetMap</a></article>`).join("")
+    : "<p class=\"field-hint\">No active regions have been published yet.</p>";
+}
+
+document.querySelector("#map-view-button").addEventListener("click", () => {
+  if (mapSearchAddress) window.open(`https://www.openstreetmap.org/search?query=${encodeURIComponent(mapSearchAddress)}`, "_blank", "noopener");
+});
 
 document.querySelector("#region-form").addEventListener("submit", async event => {
   event.preventDefault();
