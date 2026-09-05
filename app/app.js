@@ -202,7 +202,7 @@ function updateAccountButton() {
   const email = currentUser?.email || localStorage.getItem("kitchenResetEmail");
   accountButton.textContent = email ? email.split("@")[0] : "Sign in";
   accountButton.classList.toggle("signed-in", Boolean(email));
-  document.querySelector("#sign-out").classList.toggle("hidden", !currentUser);
+  document.querySelector("#sign-out").classList.toggle("hidden", !email);
 }
 
 accountButton.addEventListener("click", () => {
