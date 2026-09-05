@@ -6,9 +6,16 @@ const screens = ["address", "photos", "quote", "schedule", "confirm", "success"]
 const accountButton = document.querySelector("#account-button");
 const accountPanel = document.querySelector("#account-panel");
 const supabaseConfig = window.KITCHEN_RESET_CONFIG;
-const supabase = supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")
-  ? window.supabase.createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey)
-  : null;
+let supabase = null;
+let supabaseInitError = null;
+if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
+  try {
+    if (!window.supabase?.createClient) throw new Error("The Supabase client did not load.");
+    supabase = window.supabase.createClient(supabaseConfig.supabaseUrl, supabaseConfig.supabaseAnonKey);
+  } catch (error) {
+    supabaseInitError = error;
+  }
+}
 let currentUser = null;
 
 function showStep(step) {
@@ -171,7 +178,9 @@ document.querySelector("#account-form").addEventListener("submit", event => {
   const email = document.querySelector("#account-email").value.trim();
   if (!supabase) {
     localStorage.setItem("kitchenResetEmail", email);
-    document.querySelector("#account-status").textContent = `Saved locally. Add Supabase config to enable account sync.`;
+    document.querySelector("#account-status").textContent = supabaseInitError
+      ? `Sign-in is temporarily unavailable: ${supabaseInitError.message}`
+      : "Saved locally. Add Supabase config to enable account sync.";
     updateAccountButton();
     return;
   }
