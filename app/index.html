@@ -63,18 +63,16 @@
           <div class="section-heading"><span>Service regions</span><small id="region-status">Loading regions…</small></div>
           <div class="admin-summary"><div><strong id="active-region-count">0</strong><small>Active regions</small></div><div><strong id="total-region-count">0</strong><small>Total configured</small></div></div>
           <form id="region-form" class="admin-form">
-            <input id="pilot-region" class="text-field" list="region-suggestions" placeholder="Start typing a region…" autocomplete="off" required />
-            <datalist id="region-suggestions">
-              <option value="Williamsburg"></option>
-              <option value="Bushwick"></option>
-              <option value="Bedford-Stuyvesant"></option>
-              <option value="Lower East Side"></option>
-              <option value="Greenpoint"></option>
-            </datalist>
+            <label class="field-label" for="pilot-region">Find a region on the map database</label>
+            <input id="pilot-region" class="text-field" list="region-suggestions" placeholder="Search neighborhood, city, or county…" autocomplete="off" required />
+            <datalist id="region-suggestions"></datalist>
+            <button id="lookup-admin-region" class="secondary-button" type="button">Look up region</button>
+            <p id="admin-region-status" class="field-hint">Search for a place, then confirm the returned map location before adding it.</p>
             <select id="pilot-state" class="text-field"><option value="NY">New York</option><option value="NJ">New Jersey</option><option value="CT">Connecticut</option></select>
             <input id="pilot-borough" class="text-field" placeholder="Borough, county, or city" required />
             <input id="pilot-description" class="text-field" placeholder="Short public description (optional)" />
             <input id="pilot-map-url" class="text-field" type="url" placeholder="OpenStreetMap region URL (optional)" />
+            <iframe id="admin-region-map" class="admin-region-map hidden" title="Selected region map preview" loading="lazy"></iframe>
             <button class="primary-button" type="submit">Add region</button>
           </form>
           <div id="pilot-regions" class="admin-bookings"></div>

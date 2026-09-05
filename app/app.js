@@ -25,6 +25,7 @@ let currentUser = null;
 let mapSearchAddress = "";
 let addressSearchTimer = null;
 let verifiedAccountAddress = "";
+let selectedAdminRegion = null;
 
 function openPage(panel) {
   [accountPanel, adminPanel, proPanel, mapPanel]
@@ -430,7 +431,7 @@ document.querySelector("#account-address").addEventListener("input", event => {
       const candidate = await lookupAddressCandidate(event.target.value.trim());
       verifiedAccountAddress = candidate.address;
       event.target.value = candidate.address;
-      document.querySelector("#account-address-status").textContent = `Address found: ${candidate.address}`;
+      document.querySelector("#account-address-status").textContent = `Address verified: ${candidate.address}`;
       document.querySelector("#account-address-status").classList.remove("error");
     } catch {
       verifiedAccountAddress = "";
@@ -460,7 +461,7 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
     const candidate = await lookupAddressCandidate(address);
     verifiedAccountAddress = candidate.address;
     input.value = candidate.address;
-    status.textContent = `Address found: ${candidate.address}`;
+    status.textContent = `Address verified: ${candidate.address}`;
     status.classList.remove("error");
   } catch (error) {
     status.textContent = error.message;
@@ -680,19 +681,67 @@ document.querySelector("#map-view-button").addEventListener("click", () => {
 
 document.querySelector("#region-form").addEventListener("submit", async event => {
   event.preventDefault();
+  if (!selectedAdminRegion) {
+    document.querySelector("#admin-region-status").textContent = "Look up and confirm a map result before adding this region.";
+    document.querySelector("#admin-region-status").classList.add("error");
+    return;
+  }
   const { error } = await supabaseClient.from("pilot_regions").insert({
-    name: document.querySelector("#pilot-region").value.trim(),
+    name: selectedAdminRegion.name,
     borough: document.querySelector("#pilot-borough").value.trim(),
-    state: document.querySelector("#pilot-state").value,
+    state: selectedAdminRegion.state,
     description: document.querySelector("#pilot-description").value.trim() || null,
-    map_url: document.querySelector("#pilot-map-url").value.trim() || null
+    map_url: `https://www.openstreetmap.org/?mlat=${selectedAdminRegion.lat}&mlon=${selectedAdminRegion.lon}#map=13/${selectedAdminRegion.lat}/${selectedAdminRegion.lon}`
   });
   if (error) {
     document.querySelector("#admin-status").textContent = error.message;
     return;
   }
   event.target.reset();
+  selectedAdminRegion = null;
+  document.querySelector("#admin-region-map").classList.add("hidden");
+  document.querySelector("#admin-region-status").textContent = "Region added. Search for another map location or manage it below.";
   loadPilotAddresses();
+});
+
+document.querySelector("#pilot-region").addEventListener("input", event => {
+  selectedAdminRegion = null;
+  clearTimeout(addressSearchTimer);
+  addressSearchTimer = setTimeout(() => suggestAddressesFor("region-suggestions", event.target.value).catch(() => {}), 350);
+});
+document.querySelector("#lookup-admin-region").addEventListener("click", async () => {
+  const input = document.querySelector("#pilot-region");
+  const status = document.querySelector("#admin-region-status");
+  if (input.value.trim().length < 3) {
+    status.textContent = "Enter a neighborhood, city, or county first.";
+    status.classList.add("error");
+    return;
+  }
+  status.textContent = "Looking up region on the map database…";
+  try {
+    const candidate = await lookupAddressCandidate(input.value.trim());
+    const attrs = candidate.attributes || {};
+    selectedAdminRegion = {
+      name: candidate.address.split(",")[0],
+      borough: attrs.District || attrs.City || attrs.Subregion || "",
+      state: attrs.RegionAbbr || "",
+      lat: candidate.location.y,
+      lon: candidate.location.x
+    };
+    input.value = selectedAdminRegion.name;
+    document.querySelector("#pilot-borough").value = selectedAdminRegion.borough;
+    document.querySelector("#pilot-state").value = selectedAdminRegion.state;
+    document.querySelector("#pilot-map-url").value = `https://www.openstreetmap.org/?mlat=${selectedAdminRegion.lat}&mlon=${selectedAdminRegion.lon}#map=13/${selectedAdminRegion.lat}/${selectedAdminRegion.lon}`;
+    const bbox = `${selectedAdminRegion.lon - 0.04},${selectedAdminRegion.lat - 0.03},${selectedAdminRegion.lon + 0.04},${selectedAdminRegion.lat + 0.03}`;
+    const frame = document.querySelector("#admin-region-map");
+    frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${selectedAdminRegion.lat}%2C${selectedAdminRegion.lon}`;
+    frame.classList.remove("hidden");
+    status.textContent = `Map region selected: ${candidate.address}`;
+    status.classList.remove("error");
+  } catch (error) {
+    status.textContent = error.message;
+    status.classList.add("error");
+  }
 });
 
 async function loadProfessionalRegions() {
