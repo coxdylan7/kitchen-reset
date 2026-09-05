@@ -1,4 +1,4 @@
-const state = { step: 1, address: "", photos: 0, tier: { name: "Standard Reset", price: 79, duration: 70 }, deadline: "Today by 7:00 PM", bonus: 0 };
+const state = { step: 1, address: "", photos: 0, addressVerified: false, tier: { name: "Standard Reset", price: 79, duration: 70 }, deadline: "Today by 7:00 PM", bonus: 0 };
 const labels = ["Address", "Photos", "Your quote", "Deadline", "Review", "Booked"];
 const next = document.querySelector("#next");
 const back = document.querySelector("#back");
@@ -115,6 +115,8 @@ async function suggestAddresses(value) {
 }
 
 document.querySelector("#address-street").addEventListener("input", event => {
+  state.addressVerified = false;
+  document.querySelector("#address-result").classList.add("hidden");
   clearTimeout(addressSearchTimer);
   addressSearchTimer = setTimeout(() => suggestAddresses(event.target.value).catch(() => {}), 350);
 });
@@ -272,6 +274,10 @@ next.addEventListener("click", async () => {
     const zip = document.querySelector("#address-zip").value.trim();
     state.address = [street, unit, city, addressState, zip].filter(Boolean).join(", ");
     const hint = document.querySelector("#address-hint");
+    if (state.addressVerified) {
+      showStep(2);
+      return;
+    }
     if (!street || !city || !addressState || !zip) { hint.textContent = "Enter the street, city, state, and ZIP code."; hint.classList.add("error"); return; }
     if (!document.querySelector("#service-region").value) {
       hint.textContent = "Choose a service region before checking the address.";
@@ -302,6 +308,9 @@ next.addEventListener("click", async () => {
       return;
     }
     next.disabled = false;
+    state.addressVerified = true;
+    next.textContent = "Continue to photos";
+    return;
   }
   if (state.step === 2) updateQuote();
   if (state.step === 4) updateSummary();
@@ -323,7 +332,7 @@ next.addEventListener("click", async () => {
 });
 back.addEventListener("click", () => showStep(Math.max(state.step - 1, 1)));
 document.querySelector("#restart").addEventListener("click", () => {
-  state.step = 1; state.photos = 0; state.bonus = 0;
+  state.step = 1; state.photos = 0; state.addressVerified = false; state.bonus = 0;
   document.querySelectorAll(".photo-card").forEach(card => {
     const input = card.querySelector("input");
     card.classList.remove("uploaded");
@@ -559,6 +568,8 @@ async function loadPilotAddresses() {
     return;
   }
   regionStatus.textContent = `${data.length} configured · ${data.filter(item => item.active).length} active`;
+  document.querySelector("#active-region-count").textContent = data.filter(item => item.active).length;
+  document.querySelector("#total-region-count").textContent = data.length;
 
   list.innerHTML = data.length
     ? data.map(item => `<div class="admin-booking"><strong>${item.name}</strong><small>${item.borough}, ${item.state} · ${item.active ? "Active" : "Inactive"} <button class="text-button address-toggle" data-id="${item.id}" data-active="${item.active}">${item.active ? "Disable" : "Enable"}</button> <button class="text-button address-delete" data-id="${item.id}">Delete permanently</button></small></div>`).join("")
