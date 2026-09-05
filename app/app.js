@@ -26,6 +26,16 @@ if (supabaseConfig && !supabaseConfig.supabaseUrl.includes("YOUR-PROJECT")) {
 let currentUser = null;
 let mapSearchAddress = "";
 let addressSearchTimer = null;
+const fallbackRegions = [
+  { name: "Williamsburg", borough: "Brooklyn", state: "NY" },
+  { name: "Bushwick", borough: "Brooklyn", state: "NY" },
+  { name: "Bedford-Stuyvesant", borough: "Brooklyn", state: "NY" },
+  { name: "Lower East Side", borough: "Manhattan", state: "NY" },
+  { name: "Greenpoint", borough: "Brooklyn", state: "NY" },
+  { name: "Jersey City", borough: "Hudson County", state: "NJ" },
+  { name: "Newark", borough: "Essex County", state: "NJ" },
+  { name: "Stamford", borough: "Fairfield County", state: "CT" }
+];
 
 function openPage(panel) {
   [accountPanel, adminPanel, directoryPanel, proPanel, mapPanel]
@@ -60,34 +70,43 @@ function showPasswordSetup() {
 
 async function locateAddress(address) {
   const selectedRegion = document.querySelector("#service-region").selectedOptions[0]?.textContent || "";
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=us&q=${encodeURIComponent(`${address}, ${selectedRegion}`)}`;
+  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, ${selectedRegion}`)}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error("The address service is unavailable. Use the map link to verify it.");
-  const results = await response.json();
-  const result = results[0];
+  const payload = await response.json();
+  const candidate = payload.candidates?.[0];
+  const result = candidate ? {
+    display_name: candidate.address,
+    lat: candidate.location.y,
+    lon: candidate.location.x,
+    address: {
+      city: candidate.attributes?.City || "",
+      state: candidate.attributes?.RegionAbbr || candidate.attributes?.Region || ""
+    }
+  } : null;
   if (!result) return null;
-  const borough = result.address?.borough || result.address?.city_district || "";
+  const borough = result.address?.city || "";
   const { data: pilotRegions } = supabaseClient
-    ? await supabaseClient.from("pilot_regions").select("name,borough").eq("active", true)
-    : { data: [] };
+    ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true)
+    : { data: fallbackRegions };
+  const activeRegions = pilotRegions?.length ? pilotRegions : fallbackRegions;
   const searchText = `${result.display_name} ${Object.values(result.address || {}).join(" ")}`.toLowerCase();
   const selectedRegionName = document.querySelector("#service-region").value;
-  const matchedRegion = pilotRegions?.find(region => region.name === selectedRegionName && searchText.includes(region.name.toLowerCase()));
-  const inPilot = pilotRegions?.length
-    ? Boolean(matchedRegion)
-    : /Brooklyn|Manhattan/i.test(`${borough} ${result.display_name}`);
+  const selectedOption = document.querySelector("#service-region").selectedOptions[0];
+  const matchedRegion = activeRegions.find(region => region.name === selectedRegionName);
+  const inPilot = Boolean(matchedRegion && selectedOption?.dataset.state === result.address.state);
   return { ...result, borough, inPilot, matchedRegion };
 }
 
 async function suggestAddresses(value) {
   if (value.trim().length < 3) return;
   const region = document.querySelector("#service-region").selectedOptions[0]?.textContent || "New York, New Jersey, Connecticut";
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&countrycodes=us&q=${encodeURIComponent(`${value}, ${region}`)}`;
+  const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${value}, ${region}`)}`;
   const response = await fetch(url);
   if (!response.ok) return;
   const results = await response.json();
   const datalist = document.querySelector("#address-suggestions");
-  datalist.innerHTML = results.map(result => `<option value="${result.display_name}"></option>`).join("");
+  datalist.innerHTML = (results.suggestions || []).map(result => `<option value="${result.text}"></option>`).join("");
 }
 
 document.querySelector("#address").addEventListener("input", event => {
@@ -252,7 +271,7 @@ next.addEventListener("click", async () => {
       const result = await locateAddress(state.address);
       if (!result) throw new Error("We couldn’t locate that address. Check the street, number, and borough.");
       if (!result.inPilot) {
-        hint.textContent = "That address is outside the current NYC pilot area. Try a Brooklyn or Manhattan address.";
+        hint.textContent = "That address is outside the selected service region. Check the address or choose another region.";
         hint.classList.add("error");
         showMapSearch(state.address);
         next.disabled = false;
@@ -571,13 +590,13 @@ document.querySelector("#region-form").addEventListener("submit", async event =>
 async function loadProfessionalRegions() {
   const select = document.querySelector("#pro-region");
   const addressRegion = document.querySelector("#service-region");
-  if (!supabaseClient) return;
-  const { data } = await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name");
-  if (data?.length) {
-    const options = data.map(region => `<option value="${region.name}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
-    select.innerHTML = '<option value="">Choose a region</option>' + options;
-    addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
-  }
+  const { data } = supabaseClient
+    ? await supabaseClient.from("pilot_regions").select("name,borough,state").eq("active", true).order("name")
+    : { data: null };
+  const regions = data?.length ? data : fallbackRegions;
+  const options = regions.map(region => `<option value="${region.name}" data-state="${region.state}">${region.name} · ${region.borough}, ${region.state}</option>`).join("");
+  select.innerHTML = '<option value="">Choose a region</option>' + options;
+  addressRegion.innerHTML = '<option value="">Choose a service region first</option>' + options;
 }
 loadProfessionalRegions();
 
