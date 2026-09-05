@@ -441,12 +441,10 @@ function updateAccountButton() {
     document.querySelector("#create-account-button").classList.add("hidden");
     document.querySelector("#magic-link-button").classList.add("hidden");
     document.querySelector("#account-status").classList.add("hidden");
-    document.querySelector("#account-booking-cta").classList.remove("hidden");
   } else {
     document.querySelector("#account-dashboard-content").classList.add("hidden");
     document.querySelector("#account-form").classList.remove("hidden");
     document.querySelector("#account-status").classList.remove("hidden");
-    document.querySelector("#account-booking-cta").classList.add("hidden");
   }
 }
 
@@ -463,8 +461,6 @@ accountButton.addEventListener("click", () => {
 document.querySelector("#close-map").addEventListener("click", () => closePage(mapPanel));
 document.querySelector("#close-account").addEventListener("click", () => closePage(accountPanel));
 document.querySelector("#book-appointment-button").addEventListener("click", startBooking);
-document.querySelector("#account-booking-cta").addEventListener("click", startBooking);
-document.querySelector("#start-booking-button").addEventListener("click", startBooking);
 headerBookButton.addEventListener("click", openBookingEntry);
 async function signOut() {
   if (supabaseClient) {
