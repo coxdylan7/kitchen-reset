@@ -109,15 +109,23 @@ async function suggestAddresses(value) {
   datalist.innerHTML = (results.suggestions || []).map(result => `<option value="${result.text}"></option>`).join("");
 }
 
+async function lookupAddressCandidate(address) {
+  const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, USA`)}`);
+  if (!response.ok) throw new Error("The address service is unavailable right now.");
+  const payload = await response.json();
+  const candidate = payload.candidates?.[0];
+  if (!candidate) throw new Error("Address not found. Check the street, city, state, and ZIP.");
+  return candidate;
+}
+
 async function extrapolateAddress() {
   const input = document.querySelector("#address-street");
   if (input.value.trim().length < 5) return;
   try {
-    const result = await locateAddress(input.value.trim());
-    if (!result) return;
-    document.querySelector("#address-city").value = result.address.city;
-    document.querySelector("#address-state").value = result.address.state;
-    document.querySelector("#address-zip").value = result.address.zip;
+    const candidate = await lookupAddressCandidate(input.value.trim());
+    document.querySelector("#address-city").value = candidate.attributes?.City || "";
+    document.querySelector("#address-state").value = candidate.attributes?.RegionAbbr || "";
+    document.querySelector("#address-zip").value = candidate.attributes?.Postal || "";
     document.querySelector("#address-hint").textContent = "Address details filled from the address lookup.";
   } catch (error) {
     document.querySelector("#address-hint").textContent = error.message;
@@ -416,11 +424,27 @@ document.querySelector("#account-address").addEventListener("input", event => {
   clearTimeout(addressSearchTimer);
   addressSearchTimer = setTimeout(async () => {
     if (event.target.value.trim().length < 3) return;
-    const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${event.target.value.trim()}, USA`)}`);
-    if (!response.ok) return;
-    const payload = await response.json();
-    document.querySelector("#account-address-suggestions").innerHTML = (payload.suggestions || []).map(item => `<option value="${item.text}"></option>`).join("");
+    await suggestAddressesFor("account-address-suggestions", event.target.value);
+    if (event.target.value.trim().length < 8) return;
+    try {
+      const candidate = await lookupAddressCandidate(event.target.value.trim());
+      verifiedAccountAddress = candidate.address;
+      event.target.value = candidate.address;
+      document.querySelector("#account-address-status").textContent = `Address found: ${candidate.address}`;
+      document.querySelector("#account-address-status").classList.remove("error");
+    } catch {
+      verifiedAccountAddress = "";
+    }
   }, 350);
+});
+async function suggestAddressesFor(listId, value) {
+  const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=5&text=${encodeURIComponent(`${value.trim()}, USA`)}`);
+  if (!response.ok) return;
+  const payload = await response.json();
+  document.querySelector(`#${listId}`).innerHTML = (payload.suggestions || []).map(item => `<option value="${item.text}"></option>`).join("");
+}
+document.querySelector("#account-address").addEventListener("change", event => {
+  if (event.target.value.trim()) document.querySelector("#verify-account-address").click();
 });
 document.querySelector("#verify-account-address").addEventListener("click", async () => {
   const input = document.querySelector("#account-address");
@@ -433,10 +457,7 @@ document.querySelector("#verify-account-address").addEventListener("click", asyn
   }
   status.textContent = "Looking up address…";
   try {
-    const response = await fetch(`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=*&singleLine=${encodeURIComponent(`${address}, USA`)}`);
-    const payload = await response.json();
-    const candidate = payload.candidates?.[0];
-    if (!response.ok || !candidate) throw new Error("Address not found. Check the street, city, state, and ZIP.");
+    const candidate = await lookupAddressCandidate(address);
     verifiedAccountAddress = candidate.address;
     input.value = candidate.address;
     status.textContent = `Address found: ${candidate.address}`;
