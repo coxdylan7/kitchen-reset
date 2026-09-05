@@ -634,6 +634,7 @@ document.querySelector("#close-pro").addEventListener("click", () => closePage(p
 workerButton.addEventListener("click", () => {
   openPage(workerPanel);
   loadProfessionalRegions();
+  loadWorkerPortal();
 });
 document.querySelector("#close-worker").addEventListener("click", () => closePage(workerPanel));
 document.querySelector("#worker-availability").addEventListener("click", event => {
@@ -644,6 +645,7 @@ document.querySelector("#worker-availability").addEventListener("click", event =
   document.querySelector("#worker-status").textContent = available
     ? "You are marked available for new tri-state assignments."
     : "You are offline and will not be shown for new assignments.";
+  saveWorkerAvailability(available);
 });
 document.querySelector("#save-worker-profile").addEventListener("click", () => {
   const name = document.querySelector("#worker-name").value.trim();
@@ -654,10 +656,91 @@ document.querySelector("#save-worker-profile").addEventListener("click", () => {
     status.classList.add("error");
     return;
   }
-  localStorage.setItem("kitchenResetWorkerProfile", JSON.stringify({ name, region }));
-  status.textContent = "Worker profile saved on this device.";
-  status.classList.remove("error");
+  saveWorkerProfile(name, region).catch(error => {
+    status.textContent = error.message;
+    status.classList.add("error");
+  });
 });
+
+async function loadWorkerPortal() {
+  const status = document.querySelector("#worker-status");
+  const assignments = document.querySelector("#worker-assignments");
+  if (!supabaseClient || !currentUser) {
+    status.textContent = "Sign in before opening the worker portal.";
+    assignments.innerHTML = "<p class=\"field-hint\">No worker session is connected.</p>";
+    return;
+  }
+  const { data: profile, error: profileError } = await supabaseClient
+    .from("worker_profiles")
+    .select("name,primary_region,available")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+  if (profileError) {
+    status.textContent = `Worker setup is not enabled yet: ${profileError.message}`;
+    return;
+  }
+  if (profile) {
+    document.querySelector("#worker-name").value = profile.name;
+    document.querySelector("#worker-region").value = profile.primary_region;
+    const availability = document.querySelector("#worker-availability");
+    availability.dataset.available = String(profile.available);
+    availability.textContent = profile.available ? "Go offline" : "Go available";
+    document.querySelector("#worker-availability-label").textContent = profile.available ? "Available" : "Offline";
+    if (!profile.available) {
+      status.textContent = "Save your worker profile, then choose Go available to load open jobs.";
+    }
+  }
+  if (profile?.available) await loadWorkerJobs();
+  else assignments.innerHTML = "<p class=\"field-hint\">Go available to see open jobs.</p>";
+}
+
+async function loadWorkerJobs() {
+  const assignments = document.querySelector("#worker-assignments");
+  if (!supabaseClient || !currentUser) return;
+  assignments.innerHTML = "<p class=\"field-hint\">Loading available jobs…</p>";
+  const { data, error } = await supabaseClient
+    .from("bookings")
+    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,created_at")
+    .eq("status", "matching")
+    .is("worker_id", null)
+    .order("created_at", { ascending: false })
+    .limit(25);
+  if (error) {
+    assignments.innerHTML = `<p class="field-hint error">${error.message}</p>`;
+    return;
+  }
+  assignments.innerHTML = data.length
+    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><button class="secondary-button worker-job-button" type="button" data-job-id="${job.id}">Review job</button></article>`).join("")
+    : "<p class=\"field-hint\">No open jobs are available right now.</p>";
+}
+
+async function saveWorkerProfile(name, region) {
+  if (!supabaseClient || !currentUser) throw new Error("Sign in before saving a worker profile.");
+  const { error } = await supabaseClient.from("worker_profiles").upsert({
+    user_id: currentUser.id, name, primary_region: region, updated_at: new Date().toISOString()
+  });
+  if (error) throw error;
+  const status = document.querySelector("#worker-profile-status");
+  status.textContent = "Worker profile saved. Go available to receive open jobs.";
+  status.classList.remove("error");
+  loadWorkerJobs();
+}
+
+async function saveWorkerAvailability(available) {
+  if (!supabaseClient || !currentUser) return;
+  const name = document.querySelector("#worker-name").value.trim();
+  const region = document.querySelector("#worker-region").value;
+  if (available && (!name || !region)) {
+    document.querySelector("#worker-availability").dataset.available = "false";
+    document.querySelector("#worker-availability").textContent = "Go available";
+    document.querySelector("#worker-availability-label").textContent = "Offline";
+    document.querySelector("#worker-status").textContent = "Save your worker profile before going available.";
+    return;
+  }
+  const { error } = await supabaseClient.from("worker_profiles").update({ available, updated_at: new Date().toISOString() }).eq("user_id", currentUser.id);
+  if (error) document.querySelector("#worker-status").textContent = `Availability could not be saved: ${error.message}`;
+  else loadWorkerJobs();
+}
 document.querySelector("#pro-form").addEventListener("submit", async event => {
   event.preventDefault();
   const status = document.querySelector("#pro-status");

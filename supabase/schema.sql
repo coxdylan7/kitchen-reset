@@ -23,6 +23,17 @@ create table if not exists public.booking_photos (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.worker_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  name text not null,
+  primary_region text not null,
+  available boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.bookings add column if not exists worker_id uuid references auth.users(id) on delete set null;
+
 create table if not exists public.admin_users (
   user_id uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
@@ -74,6 +85,7 @@ alter table public.admin_users enable row level security;
 alter table public.pilot_addresses enable row level security;
 alter table public.pilot_regions enable row level security;
 alter table public.professional_applications enable row level security;
+alter table public.worker_profiles enable row level security;
 
 create policy "Users can view their bookings"
   on public.bookings for select using (auth.uid() = user_id);
@@ -83,6 +95,13 @@ create policy "Admins can view all bookings"
   on public.bookings for select using (
     exists (select 1 from public.admin_users where user_id = auth.uid())
   );
+create policy "Workers can view open bookings"
+  on public.bookings for select using (
+    status = 'matching'
+    and exists (select 1 from public.worker_profiles where user_id = auth.uid() and available = true)
+  );
+create policy "Workers can manage their worker profile"
+  on public.worker_profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "Users can view their booking photos"
   on public.booking_photos for select using (auth.uid() = user_id);
