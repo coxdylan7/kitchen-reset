@@ -788,7 +788,10 @@ async function loadAcceptedWorkerJobs() {
   }
   list.innerHTML = data.length
     ? data.map(job => {
-      const status = job.booking_checkins?.[0]?.status || job.status;
+      const checkin = Array.isArray(job.booking_checkins)
+        ? job.booking_checkins[0]
+        : job.booking_checkins;
+      const status = checkin?.status || job.status;
       const nextLabel = status === "assigned" ? "Mark en route" : status === "en_route" ? "Mark arrived" : status === "arrived" ? "Start clean" : status === "in_progress" ? "Complete clean" : "Completed";
       return `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${status.replace("_", " ")}</span>${status !== "completed" ? `<button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${status}">${nextLabel}</button>` : ""}<button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`;
     }).join("")
@@ -812,7 +815,10 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
     ? `Could not update status: ${error.message}. Run the latest worker SQL migration.`
     : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
-  if (!error) loadAcceptedWorkerJobs();
+  if (!error) {
+    button.dataset.status = nextStatus;
+    await loadAcceptedWorkerJobs();
+  }
 });
 
 function showWorkerJobReview(jobId) {
