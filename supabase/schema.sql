@@ -35,6 +35,8 @@ create table if not exists public.worker_profiles (
 alter table public.bookings add column if not exists worker_id uuid references auth.users(id) on delete set null;
 alter table public.bookings add column if not exists payment_status text not null default 'pending' check (payment_status in ('pending', 'paid', 'failed', 'refunded'));
 alter table public.bookings add column if not exists paid_at timestamptz;
+alter table public.bookings add column if not exists worker_payout_status text not null default 'pending';
+alter table public.bookings add column if not exists worker_payout_transfer_id text;
 
 create table if not exists public.customer_lockboxes (
   user_id uuid primary key references auth.users(id) on delete cascade,

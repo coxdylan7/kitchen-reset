@@ -2,6 +2,8 @@ import Stripe from "https://esm.sh/stripe@16.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async request => {
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+  if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const auth = request.headers.get("Authorization");
   if (!auth) return new Response("Authentication required", { status: 401 });
@@ -40,5 +42,5 @@ Deno.serve(async request => {
     success_url: `${Deno.env.get("APP_URL")}/?payment=success&booking=${booking.id}`,
     cancel_url: `${Deno.env.get("APP_URL")}/?payment=cancelled&booking=${booking.id}`
   });
-  return Response.json({ url: session.url });
+  return Response.json({ url: session.url }, { headers: cors });
 });

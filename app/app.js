@@ -704,6 +704,20 @@ document.querySelector("#save-worker-profile").addEventListener("click", () => {
     status.textContent = error.message;
     status.classList.add("error");
   });
+  document.querySelector("#connect-worker-payouts").addEventListener("click", async event => {
+    const status = document.querySelector("#worker-profile-status");
+    const button = event.currentTarget;
+    button.disabled = true;
+    status.textContent = "Opening secure payout setup…";
+    const { data, error } = await supabaseClient.functions.invoke("create-connect-account-link");
+    if (error || !data?.url) {
+      status.textContent = error?.message || "Payout setup is not deployed yet.";
+      status.classList.add("error");
+      button.disabled = false;
+      return;
+    }
+    window.location.href = data.url;
+  });
 });
 
 async function loadWorkerPortal() {
@@ -781,7 +795,7 @@ async function loadAcceptedWorkerJobs() {
   if (!supabaseClient || !currentUser) return;
   const { data, error } = await supabaseClient
     .from("bookings")
-    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at")
+    .select("id,user_id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at")
     .eq("worker_id", currentUser.id)
     .in("status", ["assigned", "in_progress", "completed"])
     .order("created_at", { ascending: false })
@@ -790,6 +804,7 @@ async function loadAcceptedWorkerJobs() {
     list.innerHTML = `<p class="field-hint error">Accepted jobs could not be loaded: ${error.message}</p>`;
     return;
   }
+  data.forEach(job => workerJobs.set(job.id, job));
   const { data: checkins } = data.length
     ? await supabaseClient.from("booking_checkins").select("booking_id,status").in("booking_id", data.map(job => job.id))
     : { data: [] };
@@ -798,14 +813,63 @@ async function loadAcceptedWorkerJobs() {
     ? data.map(job => {
       const status = workerStatusOverrides.get(job.id) || checkinStatuses.get(job.id) || job.status;
       const nextLabel = status === "assigned" ? "Mark en route" : status === "en_route" ? "Mark arrived" : status === "arrived" ? "Start clean" : status === "in_progress" ? "Complete clean" : "Completed";
-      return `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${status.replace("_", " ")}</span>${status !== "completed" ? `<button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${status}">${nextLabel}</button>` : ""}<button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`;
+      return `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${status.replace("_", " ")}</span>${status !== "completed" ? `<button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${status}">${nextLabel}</button>` : ""}${status === "in_progress" || status === "completed" ? `<label class="text-button worker-photo-label">Add finished photos<input class="worker-finished-photos hidden" type="file" accept="image/*" multiple data-job-id="${job.id}"></label><button class="secondary-button worker-submit-photos" type="button" data-job-id="${job.id}">Submit photos to client</button>` : ""}<button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`;
     }).join("")
     : "<p class=\"field-hint\">No accepted jobs yet.</p>";
 }
 document.querySelector("#worker-accepted-jobs").addEventListener("click", async event => {
-  const button = event.target.closest(".worker-checkin, .worker-lockbox");
+  const button = event.target.closest(".worker-checkin, .worker-lockbox, .worker-submit-photos");
   if (!button) return;
   const status = document.querySelector(`[data-status-for="${button.dataset.jobId}"]`);
+  if (button.classList.contains("worker-submit-photos")) {
+    const input = button.closest(".worker-job").querySelector(".worker-finished-photos");
+    if (!input.files.length) {
+      status.textContent = "Choose at least one finished photo first.";
+      status.classList.add("error");
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Uploading…";
+    let uploaded = 0;
+    for (const file of input.files) {
+      const job = workerJobs.get(button.dataset.jobId);
+      if (!job) {
+        status.textContent = "This booking is no longer available.";
+        status.classList.add("error");
+        button.disabled = false;
+        button.textContent = "Submit photos to client";
+        return;
+      }
+      const path = `${job.user_id}/${button.dataset.jobId}/finished-${crypto.randomUUID()}.${file.name.split(".").pop() || "jpg"}`;
+      const upload = await supabaseClient.storage.from("booking-photos").upload(path, file, { contentType: file.type, upsert: false });
+      if (upload.error) {
+        status.textContent = `Photo upload failed: ${upload.error.message}`;
+        status.classList.add("error");
+        button.disabled = false;
+        button.textContent = "Submit photos to client";
+        return;
+      }
+      const photo = await supabaseClient.from("booking_photos").insert({
+        booking_id: button.dataset.jobId,
+        user_id: job.user_id,
+        photo_type: "finished",
+        storage_path: path
+      });
+      if (photo.error) {
+        status.textContent = `Photo record failed: ${photo.error.message}`;
+        status.classList.add("error");
+        button.disabled = false;
+        button.textContent = "Submit photos to client";
+        return;
+      }
+      uploaded += 1;
+    }
+    status.textContent = `${uploaded} finished photo${uploaded === 1 ? "" : "s"} submitted to the client.`;
+    status.classList.remove("error");
+    button.disabled = false;
+    button.textContent = "Submit more photos";
+    return;
+  }
   if (button.classList.contains("worker-lockbox")) {
     const { data, error } = await supabaseClient.rpc("get_active_lockbox_code", { target_booking: button.dataset.jobId });
     status.textContent = error ? error.message : `Lockbox code: ${data}. Use it only for this active clean.`;
@@ -848,7 +912,18 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
     }
     button.dataset.status = savedStatus;
     button.textContent = savedStatus === "en_route" ? "Mark arrived" : savedStatus === "arrived" ? "Start clean" : savedStatus === "in_progress" ? "Complete clean" : "Completed";
-    if (savedStatus === "completed") button.remove();
+    if (savedStatus === "completed") {
+      button.remove();
+      if (!card.querySelector(".worker-submit-photos")) {
+        card.querySelector(".worker-job-status").insertAdjacentHTML("beforebegin", `<label class="text-button worker-photo-label">Add finished photos<input class="worker-finished-photos hidden" type="file" accept="image/*" multiple data-job-id="${button.dataset.jobId}"></label><button class="secondary-button worker-submit-photos" type="button" data-job-id="${button.dataset.jobId}">Submit photos to client</button>`);
+      }
+      const payout = await supabaseClient.functions.invoke("create-worker-payout", { body: { booking_id: button.dataset.jobId } });
+      if (payout.error) {
+        status.textContent += ` Payout is pending: ${payout.error.message}`;
+      } else {
+        status.textContent += " Worker payout submitted.";
+      }
+    }
   }
 });
 
@@ -1201,11 +1276,24 @@ async function loadAccountBookings() {
     status.textContent = error.message;
     return;
   }
+  const bookingIds = data.map(booking => booking.id);
+  const { data: photos } = bookingIds.length
+    ? await supabaseClient.from("booking_photos").select("booking_id,storage_path,photo_type").in("booking_id", bookingIds).eq("photo_type", "finished")
+    : { data: [] };
+  const photoLinks = new Map();
+  for (const photo of photos || []) {
+    const { data: signed } = await supabaseClient.storage.from("booking-photos").createSignedUrl(photo.storage_path, 3600);
+    if (signed?.signedUrl) {
+      if (!photoLinks.has(photo.booking_id)) photoLinks.set(photo.booking_id, []);
+      photoLinks.get(photo.booking_id).push(signed.signedUrl);
+    }
+  }
   status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
   list.innerHTML = data.length ? data.map(booking => {
     const paymentStatus = booking.payment_status || "pending";
     const paymentLabel = paymentStatus === "paid" ? "Paid" : paymentStatus === "failed" ? "Payment failed" : paymentStatus === "refunded" ? "Refunded" : "Payment needed";
-    return `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span><span class="booking-status">${paymentLabel}</span>${paymentStatus !== "paid" ? `<button class="secondary-button booking-pay-button" type="button" data-booking-id="${booking.id}">Pay securely</button>` : ""}</article>`;
+    const finished = (photoLinks.get(booking.id) || []).map(url => `<a href="${url}" target="_blank" rel="noopener"><img class="booking-photo" src="${url}" alt="Finished kitchen photo"></a>`).join("");
+    return `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span><span class="booking-status">${paymentLabel}</span>${paymentStatus !== "paid" ? `<button class="secondary-button booking-pay-button" type="button" data-booking-id="${booking.id}">Pay securely</button>` : ""}${finished ? `<div class="booking-photos">${finished}</div>` : ""}</article>`;
   }).join("") : "<p class=\"field-hint\">You have no bookings yet.</p>";
 }
 document.querySelector("#account-customer-bookings").addEventListener("click", async event => {
