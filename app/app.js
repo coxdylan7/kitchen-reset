@@ -412,21 +412,24 @@ next.addEventListener("click", async () => {
   showStep(Math.min(state.step + 1, 6));
 });
 document.querySelector("#pay-booking-button").addEventListener("click", async () => {
-  const status = document.querySelector("#payment-status");
-  if (!supabaseClient || !currentUser || !state.bookingId) {
+  await startPayment(state.bookingId, document.querySelector("#payment-status"));
+});
+async function startPayment(bookingId, status) {
+  if (!supabaseClient || !currentUser || !bookingId) {
     status.textContent = "Sign in and create a booking before starting payment.";
     status.classList.add("error");
     return;
   }
   status.textContent = "Opening secure checkout…";
-  const { data, error } = await supabaseClient.functions.invoke("create-checkout-session", { body: { booking_id: state.bookingId } });
+  status.classList.remove("error");
+  const { data, error } = await supabaseClient.functions.invoke("create-checkout-session", { body: { booking_id: bookingId } });
   if (error || !data?.url) {
     status.textContent = error?.message || "Secure checkout is not configured yet.";
     status.classList.add("error");
     return;
   }
   window.location.href = data.url;
-});
+}
 back.addEventListener("click", () => showStep(Math.max(state.step - 1, 1)));
 document.querySelector("#restart").addEventListener("click", () => {
   state.step = 1; state.photos = 0; state.addressVerified = false; state.bonus = 0;
@@ -1193,13 +1196,49 @@ async function loadAccountBookings() {
   const status = document.querySelector("#account-customer-status");
   const list = document.querySelector("#account-customer-bookings");
   if (!supabaseClient || !currentUser) return;
-  const { data, error } = await supabaseClient.from("bookings").select("service_tier,address,price_cents,bonus_cents,deadline,status").order("created_at", { ascending: false }).limit(20);
+  const { data, error } = await supabaseClient.from("bookings").select("id,service_tier,address,price_cents,bonus_cents,deadline,status,payment_status,paid_at").order("created_at", { ascending: false }).limit(20);
   if (error) {
     status.textContent = error.message;
     return;
   }
   status.textContent = `${data.length} booking${data.length === 1 ? "" : "s"}`;
-  list.innerHTML = data.length ? data.map(booking => `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span></article>`).join("") : "<p class=\"field-hint\">You have no bookings yet.</p>";
+  list.innerHTML = data.length ? data.map(booking => {
+    const paymentStatus = booking.payment_status || "pending";
+    const paymentLabel = paymentStatus === "paid" ? "Paid" : paymentStatus === "failed" ? "Payment failed" : paymentStatus === "refunded" ? "Refunded" : "Payment needed";
+    return `<article class="booking-card"><strong>${booking.service_tier} · $${((booking.price_cents + booking.bonus_cents) / 100).toFixed(0)}</strong><small>${booking.address}<br>${booking.deadline}</small><span class="booking-status">${booking.status}</span><span class="booking-status">${paymentLabel}</span>${paymentStatus !== "paid" ? `<button class="secondary-button booking-pay-button" type="button" data-booking-id="${booking.id}">Pay securely</button>` : ""}</article>`;
+  }).join("") : "<p class=\"field-hint\">You have no bookings yet.</p>";
+}
+document.querySelector("#account-customer-bookings").addEventListener("click", async event => {
+  const button = event.target.closest(".booking-pay-button");
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = "Opening checkout…";
+  const message = document.createElement("p");
+  message.className = "field-hint";
+  button.after(message);
+  await startPayment(button.dataset.bookingId, message);
+  if (message.classList.contains("error")) {
+    button.disabled = false;
+    button.textContent = "Pay securely";
+  }
+});
+
+async function handlePaymentReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const payment = params.get("payment");
+  const bookingId = params.get("booking");
+  if (!payment || !bookingId) return;
+  if (payment === "success") {
+    document.querySelector("#payment-status").textContent = "Payment received. Refresh your Account in a few seconds while Stripe confirms it.";
+    document.querySelector("#payment-status").classList.remove("error");
+  } else if (payment === "cancelled") {
+    document.querySelector("#payment-status").textContent = "Payment was cancelled. You can return to Account and try again.";
+  }
+  if (currentUser) {
+    openPage(accountPanel);
+    await loadAccountBookings();
+  }
+  history.replaceState({}, document.title, window.location.pathname);
 }
 
 
@@ -1211,3 +1250,4 @@ document.querySelector("#close-admin").addEventListener("click", () => closePage
 
 updateAccountButton();
 showStep(1);
+handlePaymentReturn();
