@@ -777,7 +777,7 @@ async function loadAcceptedWorkerJobs() {
   if (!supabaseClient || !currentUser) return;
   const { data, error } = await supabaseClient
     .from("bookings")
-    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at")
+    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at,booking_checkins(status)")
     .eq("worker_id", currentUser.id)
     .in("status", ["assigned", "in_progress", "completed"])
     .order("created_at", { ascending: false })
@@ -787,7 +787,11 @@ async function loadAcceptedWorkerJobs() {
     return;
   }
   list.innerHTML = data.length
-    ? data.map(job => `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${job.status}</span><button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${job.status}">${job.status === "assigned" ? "Check in" : job.status === "in_progress" ? "Complete clean" : "Update status"}</button><button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`).join("")
+    ? data.map(job => {
+      const status = job.booking_checkins?.[0]?.status || job.status;
+      const nextLabel = status === "assigned" ? "Mark en route" : status === "en_route" ? "Mark arrived" : status === "arrived" ? "Start clean" : status === "in_progress" ? "Complete clean" : "Completed";
+      return `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${status.replace("_", " ")}</span>${status !== "completed" ? `<button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${status}">${nextLabel}</button>` : ""}<button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`;
+    }).join("")
     : "<p class=\"field-hint\">No accepted jobs yet.</p>";
 }
 document.querySelector("#worker-accepted-jobs").addEventListener("click", async event => {
@@ -800,15 +804,11 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
     status.classList.toggle("error", Boolean(error));
     return;
   }
-  if (button.dataset.status === "assigned") {
-    const { data, error } = await supabaseClient.rpc("start_booking_checkin", { target_booking: button.dataset.jobId });
-    status.textContent = error ? error.message : `Checked in at ${new Date(data.started_at).toLocaleTimeString()}. Lockbox access is now available.`;
-  } else {
-    const nextStatus = button.dataset.status === "in_progress" ? "completed" : "in_progress";
-    const { error } = await supabaseClient.from("booking_checkins").update({ status: nextStatus, ended_at: nextStatus === "completed" ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("booking_id", button.dataset.jobId).eq("worker_id", currentUser.id);
-    if (!error) await supabaseClient.from("bookings").update({ status: nextStatus }).eq("id", button.dataset.jobId).eq("worker_id", currentUser.id);
-    status.textContent = error ? error.message : `Status updated to ${nextStatus.replace("_", " ")}.`;
-  }
+  const nextStatus = button.dataset.status === "assigned" ? "en_route" :
+    button.dataset.status === "en_route" ? "arrived" :
+    button.dataset.status === "arrived" ? "in_progress" : "completed";
+  const { error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
+  status.textContent = error ? error.message : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
   if (!error) loadAcceptedWorkerJobs();
 });

@@ -161,6 +161,37 @@ begin
 end;
 $$;
 
+create or replace function public.update_booking_checkin(target_booking uuid, next_status text)
+returns public.booking_checkins
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare result public.booking_checkins;
+begin
+  if next_status not in ('en_route', 'arrived', 'in_progress', 'completed') then
+    raise exception 'Invalid worker status';
+  end if;
+  if not exists (
+    select 1 from public.bookings
+    where id = target_booking and worker_id = auth.uid()
+      and status in ('assigned', 'in_progress')
+  ) then raise exception 'Booking is not assigned to this worker'; end if;
+  update public.bookings
+  set status = case when next_status = 'completed' then 'completed' else case when next_status = 'in_progress' then 'in_progress' else 'assigned' end end
+  where id = target_booking and worker_id = auth.uid();
+  insert into public.booking_checkins (booking_id, worker_id, status, started_at, ended_at)
+  values (target_booking, auth.uid(), next_status, case when next_status = 'in_progress' then now() else null end, case when next_status = 'completed' then now() else null end)
+  on conflict (booking_id) do update set
+    status = excluded.status,
+    started_at = case when excluded.status = 'in_progress' then coalesce(public.booking_checkins.started_at, now()) else public.booking_checkins.started_at end,
+    ended_at = case when excluded.status = 'completed' then now() else null end,
+    updated_at = now()
+  returning * into result;
+  return result;
+end;
+$$;
+
 create or replace function public.get_active_lockbox_code(target_booking uuid)
 returns text
 language plpgsql
