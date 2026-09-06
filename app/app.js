@@ -817,7 +817,7 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
   button.textContent = "Updating…";
   const { data: updatedCheckin, error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
   status.textContent = error
-    ? `Could not update status: ${error.message}. Run the latest worker SQL migration.`
+    ? `Could not update status: ${error.message}${error.details ? ` (${error.details})` : ""}`
     : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
   if (error) {
