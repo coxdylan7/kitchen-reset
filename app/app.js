@@ -812,13 +812,21 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
   const nextStatus = button.dataset.status === "assigned" ? "en_route" :
     button.dataset.status === "en_route" ? "arrived" :
     button.dataset.status === "arrived" ? "in_progress" : "completed";
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = "Updating…";
   const { data: updatedCheckin, error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
   status.textContent = error
     ? `Could not update status: ${error.message}. Run the latest worker SQL migration.`
     : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
+  if (error) {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
   if (!error) {
-    const savedStatus = updatedCheckin?.status || nextStatus;
+    const savedCheckin = Array.isArray(updatedCheckin) ? updatedCheckin[0] : updatedCheckin;
+    const savedStatus = savedCheckin?.status || nextStatus;
     workerStatusOverrides.set(button.dataset.jobId, savedStatus);
     const card = button.closest(".worker-job");
     const badge = card?.querySelector(".booking-status");

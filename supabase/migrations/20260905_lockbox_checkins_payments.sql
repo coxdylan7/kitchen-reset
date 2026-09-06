@@ -47,7 +47,6 @@ begin
 end; $$;
 grant execute on function public.update_booking_checkin(uuid, text) to authenticated;
 grant execute on function public.start_booking_checkin(uuid) to authenticated;
-grant execute on function public.get_active_lockbox_code(uuid) to authenticated;
 create or replace function public.get_active_lockbox_code(target_booking uuid) returns text language plpgsql security definer set search_path=public as $$
 declare code text;
 begin
@@ -56,3 +55,4 @@ begin
  if code is null then raise exception 'No confirmed lockbox code is available'; end if;
  return code;
 end; $$;
+grant execute on function public.get_active_lockbox_code(uuid) to authenticated;
