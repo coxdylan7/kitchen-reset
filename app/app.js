@@ -29,6 +29,7 @@ let addressSearchTimer = null;
 let verifiedAccountAddress = "";
 let selectedAdminRegion = null;
 const workerJobs = new Map();
+const workerStatusOverrides = new Map();
 
 function distanceMiles(lat1, lon1, lat2, lon2) {
   const radians = value => value * Math.PI / 180;
@@ -777,7 +778,7 @@ async function loadAcceptedWorkerJobs() {
   if (!supabaseClient || !currentUser) return;
   const { data, error } = await supabaseClient
     .from("bookings")
-    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at,booking_checkins(status)")
+    .select("id,address,service_tier,price_cents,bonus_cents,duration_minutes,deadline,status,created_at")
     .eq("worker_id", currentUser.id)
     .in("status", ["assigned", "in_progress", "completed"])
     .order("created_at", { ascending: false })
@@ -786,12 +787,13 @@ async function loadAcceptedWorkerJobs() {
     list.innerHTML = `<p class="field-hint error">Accepted jobs could not be loaded: ${error.message}</p>`;
     return;
   }
+  const { data: checkins } = data.length
+    ? await supabaseClient.from("booking_checkins").select("booking_id,status").in("booking_id", data.map(job => job.id))
+    : { data: [] };
+  const checkinStatuses = new Map((checkins || []).map(checkin => [checkin.booking_id, checkin.status]));
   list.innerHTML = data.length
     ? data.map(job => {
-      const checkin = Array.isArray(job.booking_checkins)
-        ? job.booking_checkins[0]
-        : job.booking_checkins;
-      const status = checkin?.status || job.status;
+      const status = workerStatusOverrides.get(job.id) || checkinStatuses.get(job.id) || job.status;
       const nextLabel = status === "assigned" ? "Mark en route" : status === "en_route" ? "Mark arrived" : status === "arrived" ? "Start clean" : status === "in_progress" ? "Complete clean" : "Completed";
       return `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${status.replace("_", " ")}</span>${status !== "completed" ? `<button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${status}">${nextLabel}</button>` : ""}<button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`;
     }).join("")
@@ -810,14 +812,20 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
   const nextStatus = button.dataset.status === "assigned" ? "en_route" :
     button.dataset.status === "en_route" ? "arrived" :
     button.dataset.status === "arrived" ? "in_progress" : "completed";
-  const { error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
+  const { data: updatedCheckin, error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
   status.textContent = error
     ? `Could not update status: ${error.message}. Run the latest worker SQL migration.`
     : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
   if (!error) {
-    button.dataset.status = nextStatus;
-    await loadAcceptedWorkerJobs();
+    const savedStatus = updatedCheckin?.status || nextStatus;
+    workerStatusOverrides.set(button.dataset.jobId, savedStatus);
+    const card = button.closest(".worker-job");
+    const badge = card?.querySelector(".booking-status");
+    if (badge) badge.textContent = savedStatus.replace("_", " ");
+    button.dataset.status = savedStatus;
+    button.textContent = savedStatus === "en_route" ? "Mark arrived" : savedStatus === "arrived" ? "Start clean" : savedStatus === "in_progress" ? "Complete clean" : "Completed";
+    if (savedStatus === "completed") button.remove();
   }
 });
 
