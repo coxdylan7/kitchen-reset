@@ -52,6 +52,17 @@
             <button id="verify-account-address" class="secondary-button" type="button">Look up address</button>
             <button id="save-account-address" class="primary-button" type="button">Save verified address</button>
             <p id="account-address-status" class="field-hint"></p>
+            <div class="settings-block">
+              <div class="section-heading"><span>Key lockbox</span><small>Shared only during an active clean</small></div>
+              <p class="field-hint">Install the lockbox outside your door, set a unique code, and test it before the appointment. Do not use your building entry code.</p>
+              <label class="field-label" for="lockbox-code">Lockbox code</label>
+              <input id="lockbox-code" class="text-field" inputmode="numeric" autocomplete="off" placeholder="4–8 digit code" />
+              <label class="field-label" for="lockbox-instructions">Access instructions</label>
+              <textarea id="lockbox-instructions" class="text-field" rows="2" placeholder="Example: Lockbox is on the railing to the left of the door."></textarea>
+              <label class="checkbox-row"><input id="lockbox-confirmed" type="checkbox" /><span>I tested the lockbox and the code works.</span></label>
+              <button id="save-lockbox" class="secondary-button" type="button">Save lockbox instructions</button>
+              <p id="lockbox-status" class="field-hint"></p>
+            </div>
             <button id="account-dashboard-sign-out" class="secondary-button" type="button">Sign out</button>
           </div>
         </div>
@@ -241,6 +252,8 @@
         <h1>We’re finding your reset pro.</h1>
         <p id="success-copy" class="lede">We’ll notify you as soon as your requested deadline is confirmed.</p>
         <article class="summary-card compact"><div><span>Booking reference</span><b id="booking-id">KR-00000</b></div><div><span>Requested completion</span><b id="success-deadline">Today by 7:00 PM</b></div></article>
+        <button id="pay-booking-button" class="primary-button" type="button">Pay securely</button>
+        <p id="payment-status" class="field-hint">Payment is required before a worker can begin.</p>
         <article class="status-card">
           <div class="section-heading"><span>Booking status</span><small id="status-updated">Just now</small></div>
           <div class="status-step complete"><span>✓</span><div><b>Request received</b><small>We have your photos and booking details.</small></div></div>

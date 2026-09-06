@@ -1,4 +1,4 @@
-const state = { step: 1, address: "", photos: 0, addressVerified: false, tier: { name: "Standard Reset", price: 79, duration: 70 }, deadline: "Today by 7:00 PM", bonus: 0 };
+const state = { step: 1, address: "", photos: 0, addressVerified: false, bookingId: null, tier: { name: "Standard Reset", price: 79, duration: 70 }, deadline: "Today by 7:00 PM", bonus: 0 };
 const labels = ["Address", "Photos", "Your quote", "Deadline", "Review", "Booked"];
 const next = document.querySelector("#next");
 const back = document.querySelector("#back");
@@ -397,7 +397,7 @@ next.addEventListener("click", async () => {
   if (state.step === 5) {
     next.disabled = true;
     try {
-      await saveBooking();
+      state.bookingId = await saveBooking();
     } catch (error) {
       next.disabled = false;
       document.querySelector("#confirm-title").textContent = "Booking could not be saved.";
@@ -409,6 +409,22 @@ next.addEventListener("click", async () => {
     document.querySelector("#success-copy").textContent = `We’ll notify you as soon as your ${state.deadline} deadline is confirmed.`;
   }
   showStep(Math.min(state.step + 1, 6));
+});
+document.querySelector("#pay-booking-button").addEventListener("click", async () => {
+  const status = document.querySelector("#payment-status");
+  if (!supabaseClient || !currentUser || !state.bookingId) {
+    status.textContent = "Sign in and create a booking before starting payment.";
+    status.classList.add("error");
+    return;
+  }
+  status.textContent = "Opening secure checkout…";
+  const { data, error } = await supabaseClient.functions.invoke("create-checkout-session", { body: { booking_id: state.bookingId } });
+  if (error || !data?.url) {
+    status.textContent = error?.message || "Secure checkout is not configured yet.";
+    status.classList.add("error");
+    return;
+  }
+  window.location.href = data.url;
 });
 back.addEventListener("click", () => showStep(Math.max(state.step - 1, 1)));
 document.querySelector("#restart").addEventListener("click", () => {
@@ -442,6 +458,7 @@ function updateAccountButton() {
     document.querySelector("#create-account-button").classList.add("hidden");
     document.querySelector("#magic-link-button").classList.add("hidden");
     document.querySelector("#account-status").classList.add("hidden");
+    loadLockbox();
   } else {
     document.querySelector("#account-dashboard-content").classList.add("hidden");
     document.querySelector("#account-form").classList.remove("hidden");
@@ -542,6 +559,28 @@ document.querySelector("#save-account-address").addEventListener("click", () => 
   document.querySelector("#address-street").value = address;
   status.textContent = "Address saved. It will be used for your next booking.";
   status.classList.remove("error");
+});
+async function loadLockbox() {
+  if (!supabaseClient || !currentUser) return;
+  const { data } = await supabaseClient.from("customer_lockboxes").select("instructions,confirmed").eq("user_id", currentUser.id).maybeSingle();
+  if (data) {
+    document.querySelector("#lockbox-instructions").value = data.instructions || "";
+    document.querySelector("#lockbox-confirmed").checked = Boolean(data.confirmed);
+  }
+}
+document.querySelector("#save-lockbox").addEventListener("click", async () => {
+  const status = document.querySelector("#lockbox-status");
+  const code = document.querySelector("#lockbox-code").value.trim();
+  const instructions = document.querySelector("#lockbox-instructions").value.trim();
+  const confirmed = document.querySelector("#lockbox-confirmed").checked;
+  if (!/^\d{4,8}$/.test(code) || !instructions || !confirmed) {
+    status.textContent = "Enter a 4–8 digit lockbox code, instructions, and confirm that you tested it.";
+    status.classList.add("error");
+    return;
+  }
+  const { error } = await supabaseClient.from("customer_lockboxes").upsert({ user_id: currentUser.id, access_code: code, instructions, confirmed, updated_at: new Date().toISOString() });
+  status.textContent = error ? error.message : "Lockbox instructions saved. The code is only released during an active clean.";
+  status.classList.toggle("error", Boolean(error));
 });
 document.querySelector("#account-form").addEventListener("submit", event => {
   event.preventDefault();
@@ -748,9 +787,31 @@ async function loadAcceptedWorkerJobs() {
     return;
   }
   list.innerHTML = data.length
-    ? data.map(job => `<article class="worker-job"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${job.status}</span></article>`).join("")
+    ? data.map(job => `<article class="worker-job" data-accepted-job="${job.id}"><strong>${job.service_tier} · $${((job.price_cents + job.bonus_cents) / 100).toFixed(0)}</strong><small>${job.address}<br>${job.deadline} · ${job.duration_minutes} minutes</small><span class="booking-status">${job.status}</span><button class="secondary-button worker-checkin" type="button" data-job-id="${job.id}" data-status="${job.status}">${job.status === "assigned" ? "Check in" : job.status === "in_progress" ? "Complete clean" : "Update status"}</button><button class="text-button worker-lockbox" type="button" data-job-id="${job.id}">Get lockbox access</button><p class="field-hint worker-job-status" data-status-for="${job.id}"></p></article>`).join("")
     : "<p class=\"field-hint\">No accepted jobs yet.</p>";
 }
+document.querySelector("#worker-accepted-jobs").addEventListener("click", async event => {
+  const button = event.target.closest(".worker-checkin, .worker-lockbox");
+  if (!button) return;
+  const status = document.querySelector(`[data-status-for="${button.dataset.jobId}"]`);
+  if (button.classList.contains("worker-lockbox")) {
+    const { data, error } = await supabaseClient.rpc("get_active_lockbox_code", { target_booking: button.dataset.jobId });
+    status.textContent = error ? error.message : `Lockbox code: ${data}. Use it only for this active clean.`;
+    status.classList.toggle("error", Boolean(error));
+    return;
+  }
+  if (button.dataset.status === "assigned") {
+    const { data, error } = await supabaseClient.rpc("start_booking_checkin", { target_booking: button.dataset.jobId });
+    status.textContent = error ? error.message : `Checked in at ${new Date(data.started_at).toLocaleTimeString()}. Lockbox access is now available.`;
+  } else {
+    const nextStatus = button.dataset.status === "in_progress" ? "completed" : "in_progress";
+    const { error } = await supabaseClient.from("booking_checkins").update({ status: nextStatus, ended_at: nextStatus === "completed" ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq("booking_id", button.dataset.jobId).eq("worker_id", currentUser.id);
+    if (!error) await supabaseClient.from("bookings").update({ status: nextStatus }).eq("id", button.dataset.jobId).eq("worker_id", currentUser.id);
+    status.textContent = error ? error.message : `Status updated to ${nextStatus.replace("_", " ")}.`;
+  }
+  status.classList.toggle("error", Boolean(error));
+  if (!error) loadAcceptedWorkerJobs();
+});
 
 function showWorkerJobReview(jobId) {
   const review = document.querySelector("#worker-job-review");
