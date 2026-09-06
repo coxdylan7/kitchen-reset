@@ -826,11 +826,23 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
   }
   if (!error) {
     const savedCheckin = Array.isArray(updatedCheckin) ? updatedCheckin[0] : updatedCheckin;
-    const savedStatus = savedCheckin?.status || nextStatus;
+    const { data: verifiedCheckin, error: verifyError } = await supabaseClient
+      .from("booking_checkins")
+      .select("status")
+      .eq("booking_id", button.dataset.jobId)
+      .maybeSingle();
+    const savedStatus = verifiedCheckin?.status || savedCheckin?.status || nextStatus;
     workerStatusOverrides.set(button.dataset.jobId, savedStatus);
     const card = button.closest(".worker-job");
     const badge = card?.querySelector(".booking-status");
+    const savedMessage = card?.querySelector(".worker-job-status");
     if (badge) badge.textContent = savedStatus.replace("_", " ");
+    if (savedMessage) {
+      savedMessage.textContent = verifyError
+        ? `Status changed to ${savedStatus.replace("_", " ")}. Refresh to confirm it was saved.`
+        : `Current status: ${savedStatus.replace("_", " ")}.`;
+      savedMessage.classList.remove("error");
+    }
     button.dataset.status = savedStatus;
     button.textContent = savedStatus === "en_route" ? "Mark arrived" : savedStatus === "arrived" ? "Start clean" : savedStatus === "in_progress" ? "Complete clean" : "Completed";
     if (savedStatus === "completed") button.remove();
