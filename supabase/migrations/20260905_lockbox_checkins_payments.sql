@@ -45,6 +45,9 @@ begin
  returning * into result;
  return result;
 end; $$;
+grant execute on function public.update_booking_checkin(uuid, text) to authenticated;
+grant execute on function public.start_booking_checkin(uuid) to authenticated;
+grant execute on function public.get_active_lockbox_code(uuid) to authenticated;
 create or replace function public.get_active_lockbox_code(target_booking uuid) returns text language plpgsql security definer set search_path=public as $$
 declare code text;
 begin

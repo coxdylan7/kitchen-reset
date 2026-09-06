@@ -808,7 +808,9 @@ document.querySelector("#worker-accepted-jobs").addEventListener("click", async 
     button.dataset.status === "en_route" ? "arrived" :
     button.dataset.status === "arrived" ? "in_progress" : "completed";
   const { error } = await supabaseClient.rpc("update_booking_checkin", { target_booking: button.dataset.jobId, next_status: nextStatus });
-  status.textContent = error ? error.message : `Status updated to ${nextStatus.replace("_", " ")}.`;
+  status.textContent = error
+    ? `Could not update status: ${error.message}. Run the latest worker SQL migration.`
+    : `Status updated to ${nextStatus.replace("_", " ")}.`;
   status.classList.toggle("error", Boolean(error));
   if (!error) loadAcceptedWorkerJobs();
 });
